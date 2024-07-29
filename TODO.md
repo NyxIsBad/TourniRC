@@ -1,0 +1,4 @@
+- Ping timeout
+- Figure out disconnect reasons
+- UI/localhost w/ Flask
+- Tournament config + functionality
