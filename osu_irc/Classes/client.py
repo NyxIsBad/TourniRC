@@ -32,7 +32,7 @@ class Client(object):
 	* `request_limit` int : (Default: 15)[ How many requests can be send before the client goes into rate limit protection (request_limit per 60 sec)]
 	"""
 	def __init__(self, Loop:Optional[asyncio.AbstractEventLoop]=None, **kwargs):
-
+		
 		# vars
 		self.Loop:asyncio.AbstractEventLoop = asyncio.get_event_loop() if Loop is None else Loop
 		self.reconnect:bool = kwargs.get("reconnect", True)
