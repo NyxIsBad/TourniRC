@@ -1,5 +1,5 @@
 from irclib import *
-from auth import configObj
+from cfg import userConfig
 
 # Debug stuff
 debug = True
@@ -9,7 +9,7 @@ def debug_print(message):
         print(message)
 
 if __name__ == "__main__":
-    config = configObj()
+    config = userConfig()
     username = config.get_username().lower()
     password = config.get_password()
 

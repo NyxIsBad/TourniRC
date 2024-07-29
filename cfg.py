@@ -1,7 +1,7 @@
 from configparser import ConfigParser
 import os
 
-class configObj():
+class userConfig():
     def __init__(self):
         self.username = ''
         self.password = ''
@@ -52,3 +52,5 @@ class configObj():
 
     def __str__(self):
         return f'User: {self.username}\nPassword: {self.password}'
+    
+# we can have tourney config files here later
