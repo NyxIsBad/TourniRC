@@ -4,8 +4,8 @@ from waitress import serve
 app = Flask(__name__)
 
 @app.route('/')
-def home():
-    return "Welcome to the Home Page!"
+def login():
+    return render_template('login.html')
 
 @app.route('/example')
 def example():
