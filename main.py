@@ -1,6 +1,7 @@
 from irclib import *
 from cfg import userConfig
 from irclog import *
+import ui
 
 # Initialize the logger
 Log = create_logger('logs/irc.log')
