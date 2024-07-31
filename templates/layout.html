@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}TourniRC{% endblock %}</title>
+    <!-- Daisy UI & Tailwind CSS import -->
+    <link href="{{ url_for('static', filename='css/output.css') }}" rel="stylesheet">
+</head>
+<body class="flex flex-col min-h-screen">
+    <!-- Navbar Header -->
+    <header>
+        <div class="navbar bg-base-100">
+            <a class="btn btn-ghost text-xl">daisyUI</a>
+        </div>
+    </header>
+    <!-- Main Content -->
+    <main class="flex-grow">
+        {% block content %}{% endblock %}
+    </main>
+    <!-- Footer -->
+    <footer class="footer footer-center bg-base-200 text-base-content rounded p-2" style="row-gap: 1rem">
+        <nav class="grid grid-flow-col gap-2">
+          <a class="link link-hover" href="https://github.com/NyxIsBad/TourniRC">Github</a>
+        </nav>
+        <aside>
+          <p>Thanks for using TourniRC by HijiriS!</p>
+        </aside>
+    </footer>
+</body>
+</html>

@@ -12,6 +12,11 @@ from ..Utils.regex import (
 	ReAction
 )
 
+# macro definitions
+CHANNEL_TYPE_NONE:int = 0
+CHANNEL_TYPE_ROOM:int = 1
+CHANNEL_TYPE_PM:int = 2
+
 class Message(object):
 	"""
 	This class represents a message.
@@ -44,7 +49,7 @@ class Message(object):
 
 		# other
 		self.is_action:bool = False
-		self._channel_type:int = 0
+		self._channel_type:int = CHANNEL_TYPE_NONE
 
 		if raw:
 			try:
@@ -92,9 +97,9 @@ class Message(object):
 		"""
 		if self.room_name.startswith('#'):
 			self._room_name = self.room_name.strip('#')
-			self._channel_type = 1
+			self._channel_type = CHANNEL_TYPE_ROOM
 		else:
-			self._channel_type = 2
+			self._channel_type = CHANNEL_TYPE_PM
 
 	def checkAction(self) -> None:
 		"""
@@ -113,9 +118,9 @@ class Message(object):
 		and a valid content you want to send.
 		"""
 
-		if self._channel_type == 1:
+		if self._channel_type == CHANNEL_TYPE_ROOM:
 			return await cls.sendMessage(self.room_name, reply)
-		elif self._channel_type == 2:
+		elif self._channel_type == CHANNEL_TYPE_PM:
 			return await cls.sendPM(self.user_name, reply)
 		else:
 			raise AttributeError("Can't reply to unknown channel type")
@@ -135,9 +140,9 @@ class Message(object):
 
 	@property
 	def channel_type(self) -> str:
-		if self._channel_type == 0: return "Unset"
-		if self._channel_type == 1: return "Room"
-		if self._channel_type == 2: return "PM"
+		if self._channel_type == CHANNEL_TYPE_NONE: return "Unset"
+		if self._channel_type == CHANNEL_TYPE_ROOM: return "Room"
+		if self._channel_type == CHANNEL_TYPE_PM: return "PM"
 		else: return "Unknown"
 
 	@property

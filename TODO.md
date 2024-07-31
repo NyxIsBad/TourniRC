@@ -9,3 +9,5 @@
     - Timer
     - Map Commands by clicking a button (read from map pool info) 
   - Sound alerts
+- Test message functionality
+  - /me messages

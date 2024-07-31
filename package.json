@@ -4,12 +4,13 @@
   "description": "Based on the osu_irc framework by The_CJ, TourniRC aims to be a tournament reffing IRC client for osu built on python and flask.",
   "main": "index.js",
   "scripts": {
-    "build": "npx tailwindcss -i ./static/css/tailwind.css -o ./static/css/output.css"
+    "build": "npx tailwindcss -i ./static/css/tailwind.css -o ./static/css/output.css --minify"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@tailwindcss/typography": "^0.5.13",
     "daisyui": "^4.12.10",
     "tailwindcss": "^3.4.7"
   }

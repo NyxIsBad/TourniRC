@@ -23,7 +23,7 @@ __version__ = "1.2.0"
 
 from .Classes.channel import Channel
 from .Classes.client import Client
-from .Classes.message import Message
+from .Classes.message import Message, CHANNEL_TYPE_NONE, CHANNEL_TYPE_ROOM, CHANNEL_TYPE_PM
 from .Classes.user import User
 
 class Errors(object):
