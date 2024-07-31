@@ -7,9 +7,9 @@ app = Flask(__name__)
 def login():
     return render_template('login.html')
 
-@app.route('/example')
+@app.route('/chat')
 def example():
-    return "This is an example route!"
+    return render_template('chat.html')
 
 @app.route('/form', methods=['GET', 'POST'])
 def form():

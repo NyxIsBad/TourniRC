@@ -7,6 +7,9 @@ import ui
 Log = create_logger('logs/irc.log')
 
 if __name__ == "__main__":
+    
+    ui.debug_run()
+
     # Load the user configuration
     config = userConfig()
     username = config.get_username().lower()
@@ -19,5 +22,6 @@ if __name__ == "__main__":
     
     me = Client(token=password, nickname=username, logger=Log)
     me.run()
+    
 
 logging.info('Program Exited')
