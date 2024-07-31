@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html data-theme="{{ current_theme }}">
+<html data-theme="{{ cur_theme }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,7 +10,7 @@
 <body class="flex flex-col min-h-screen">
     <!-- Navbar Header -->
     <header>
-        <div class="navbar bg-base-100">
+        <div class="navbar bg-base-300">
             <div class="flex-1">
                 <a class="btn btn-ghost normal-case text-xl">TourniRC</a>
             </div>
@@ -42,11 +42,11 @@
         </div>
     </header>
     <!-- Main Content -->
-    <main class="flex-grow">
+    <main class="flex-grow bg-base-200">
         {% block content %}{% endblock %}
     </main>
     <!-- Footer -->
-    <footer class="footer footer-center bg-base-200 text-base-content rounded p-2" style="row-gap: 1rem">
+    <footer class="footer footer-center bg-base-300 text-base-content rounded p-2" style="row-gap: 1rem">
         <nav class="grid grid-flow-col gap-2">
           <a class="link link-hover" href="https://github.com/NyxIsBad/TourniRC">Github</a>
         </nav>
