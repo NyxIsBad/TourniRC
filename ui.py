@@ -1,28 +1,35 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, jsonify
 from waitress import serve
+from cfg import uiConfig, THEMES
+
+from typing import *
 
 app = Flask(__name__)
+config = uiConfig()
 
 @app.route('/')
-def login():
-    return render_template('login.html')
+def chat():
+    cur_theme = config.get_theme()
+    print(cur_theme)
+    return render_template('chat.html', cur_theme=cur_theme, themes=THEMES)
 
-@app.route('/chat')
+@app.route('/set_theme', methods=['POST'])
+def set_theme():
+    data: Dict[str, Any] = request.get_json()
+    if not data:
+        return jsonify(success=False, message="No data received"), 400
+    # default to dark theme
+    theme: str = data.get('theme', 'dark')
+    if not theme:
+        return jsonify(success=False, message="No theme received"), 400
+    if theme in THEMES:
+        config.set_theme(theme)
+        return jsonify(success=True), 200
+    return jsonify(success=False), 400
+
+@app.route('/login')
 def example():
-    return render_template('chat.html')
-
-@app.route('/form', methods=['GET', 'POST'])
-def form():
-    if request.method == 'POST':
-        # Handle form data here
-        username = request.form['username']
-        return redirect(url_for('show_user_profile', username=username))
-    return '''
-        <form method="post">
-            Username: <input type="text" name="username"><br>
-            <input type="submit" value="Submit">
-        </form>
-    '''
+    return render_template('login.html')
 
 def debug_run():
     app.run()

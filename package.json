@@ -4,7 +4,7 @@
   "description": "Based on the osu_irc framework by The_CJ, TourniRC aims to be a tournament reffing IRC client for osu built on python and flask.",
   "main": "index.js",
   "scripts": {
-    "build": "npx tailwindcss -i ./static/css/tailwind.css -o ./static/css/output.css --minify"
+    "build": "npx tailwindcss -i ./static/css/tailwind.css -o ./static/css/output.css"
   },
   "keywords": [],
   "author": "",
