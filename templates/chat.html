@@ -1,28 +1,30 @@
 {% extends "layout.html" %}
 {% block title %}Chat{% endblock %}
 {% block content %}
-<div class="container mx-auto p-4">
-    <div class="bg-base-100 p-4 rounded shadow-md">
-        <h1 class="text-2xl font-bold mb-4">Chat on channel Test Channel</h1>
-        <!-- Start of chat message rendering -->
-        <div class="space-y-2">
-            <div class="p-2 bg-base-100 rounded border border-base-content">
-                <div class="flex items-start">
-                    <p class="font-semibold mr-1">Test User:</p>
-                    <p>Test Message</p>
-                </div>
+<div class="max-w-full mx-auto mt-4 bg-base-100 p-4 rounded shadow-md h-[400px] flex flex-col">
+    <h1 class="text-2xl font-bold mb-4">Chat on channel Test Channel</h1>
+    <!-- Start of chat message rendering -->
+    <div class="flex-1 space-y-2 rounded bg-base-100 border border-base-content">
+        <div class="p-2">
+            <div class="flex items-start">
+                <p class="font-semibold mr-1">Test User:</p>
+                <p>Test Message</p>
+            </div>
+            <div class="flex items-start">
+                <p class="font-semibold mr-1">Test User:</p>
+                <p>Test Message 2</p>
             </div>
         </div>
-        <form class="mt-4" action="/send_message" method="POST">
-            <div class="flex">
-                <input type="text" name="message" class="flex-1 p-2 border border-base-300 rounded mr-4" placeholder="Type a message...">
-                <button class="btn btn-circle btn-outline">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
-                    </svg>
-                </button>
-            </div>
-        </form>
     </div>
+    <form class="mt-4" action="/send_message" method="POST">
+        <div class="flex">
+            <input type="text" name="message" class="flex-1 p-2 border border-base-300 rounded mr-4" placeholder="Type a message...">
+            <button class="btn btn-circle btn-outline">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+                </svg>
+            </button>
+        </div>
+    </form>
 </div>
 {% endblock %}

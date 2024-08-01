@@ -2901,6 +2901,10 @@ html {
   height: 1rem;
 }
 
+.h-\[400px\] {
+  height: 400px;
+}
+
 .max-h-\[21\.5rem\] {
   max-height: 21.5rem;
 }
@@ -2919,6 +2923,10 @@ html {
 
 .w-full {
   width: 100%;
+}
+
+.max-w-full {
+  max-width: 100%;
 }
 
 .flex-1 {
