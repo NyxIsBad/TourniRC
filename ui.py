@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify
 from waitress import serve
 from cfg import uiConfig, THEMES
+from osu_irc import Message
 
 from typing import *
 
@@ -31,6 +32,15 @@ def set_theme():
         return jsonify(success=False, message="No theme received"), 400
     if theme in THEMES:
         config.set_theme(theme)
+        return jsonify(success=True), 200
+    return jsonify(success=False), 400
+
+@app.route('/send_message', methods=['POST'])
+def send_message():
+    data: Dict[str, Any] = request.get_json()
+    message_content: str = data.get('message', None).strip()
+    if message_content:
+        print(f"Message sent: {message_content}")
         return jsonify(success=True), 200
     return jsonify(success=False), 400
 
