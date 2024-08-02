@@ -25,7 +25,7 @@
     </style>
     <!-- Main chat area -->
     <!-- outer wrapper which will contain chat & player display -->
-    <div class="max-w-none mx-auto my-4 bg-base-100 ml-4 p-4 rounded shadow-md h-[80vh] flex flex-col" style="width: 65vw;">
+    <div class="max-w-none mx-auto my-4 bg-base-100 ml-4 p-4 rounded shadow-md h-[80vh] w-[65vw] flex flex-col">
         <!-- Channel Selector -->
         <div role="tablist" class="tabs tabs-boxed mb-4 overflow-x-auto flex">
             <div class="tab-container flex">
@@ -51,13 +51,15 @@
         <!-- Start of chat message rendering -->
         <div id="messages" class="flex-1 space-y-2 rounded bg-base-100 border border-base-content">
             <div class="p-2">
-                <div class="flex items-start">
-                    <p class="font-semibold mr-1">Test User:</p>
-                    <p>Test Message</p>
+                <div class="flex flex-wrap items-start overflow-x-hidden">
+                    <time class="mr-1 whitespace-nowrap">12:00:00</time>
+                    <p class="font-semibold mr-1 whitespace-nowrap">HijiriS:</p>
+                    <p class="flex-1 overflow-hidden text-ellipsis">Test Message Test Message Test Message Test Message Test Message Test Message Test Message Test Message Test Message Test Message Test Message Test Message </p>
                 </div>
-                <div class="flex items-start">
-                    <p class="font-semibold mr-1">Test User:</p>
-                    <p>Test Message 2</p>
+                <div class="flex flex-wrap items-start overflow-x-hidden">
+                    <time class="mr-1 whitespace-nowrap">12:00:01</time>
+                    <p class="font-semibold mr-1 whitespace-nowrap">Test User:</p>
+                    <p class="flex-1 overflow-hidden text-ellipsis">Test Message</p>
                 </div>
             </div>
         </div>
@@ -74,33 +76,39 @@
     </div>
     <!-- Actions bar -->
     <div>
-        <div class="max-w-none my-4 bg-base-100 p-4 ml-4 mr-4 rounded shadow-md h-[80vh]" style="width: 35vw;">
+        <div class="max-w-none my-4 bg-base-100 p-4 ml-4 mr-4 rounded shadow-md h-[80vh] w-[35vw]">
             <div class="collapse collapse-arrow join-item border rounded border-base-content mb-1">
-              <input type="checkbox" name="accordion" checked="checked" />
-              <div class="collapse-title text-xl font-medium">Match Info</div>
-              <div class="collapse-content">
-                <p>Stuff</p>
-              </div>
+                <input type="checkbox" name="accordion" checked="checked" />
+                <div class="collapse-title text-xl font-medium">Channel Info</div>
+                <div class="collapse-content">
+                    <!-- row 1 -->
+                    <div class="flex flex-row items-start w-[30vw]">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
+                        </svg>
+                        <a href="https://osu.ppy.sh/mp/114546263" target="_blank" rel="noopener noreferrer" class="link text-accent w-full overflow-hidden text-ellipsis whitespace-nowrap">MP Name (links to MP) AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA</a>
+                    </div>
+                </div>
             </div>
             <div class="collapse collapse-arrow join-item border rounded border-base-content mb-1">
-              <input type="checkbox" name="accordion" />
-              <div class="collapse-title text-xl font-medium">Timers</div>
-              <div class="collapse-content">
-                <p>hello</p>
-              </div>
+                <input type="checkbox" name="accordion" />
+                <div class="collapse-title text-xl font-medium">Timers</div>
+                <div class="collapse-content">
+                    <p>hello</p>
+                </div>
             </div>
             <div class="collapse collapse-arrow join-item border rounded border-base-content mb-1">
-              <input type="checkbox" name="accordion" />
-              <div class="collapse-title text-xl font-medium">Maps</div>
-              <div class="collapse-content">
-                <p>hello</p>
-              </div>
+                <input type="checkbox" name="accordion" />
+                <div class="collapse-title text-xl font-medium">Maps</div>
+                <div class="collapse-content">
+                    <p>hello</p>
+                </div>
             </div>
             <div class="collapse collapse-arrow join-item border rounded border-base-content mb-1">
                 <input type="checkbox" name="accordion" />
                 <div class="collapse-title text-xl font-medium">Mods</div>
                 <div class="collapse-content">
-                  <p>hello</p>
+                    <p>hello</p>
                 </div>
             </div>
         </div>
