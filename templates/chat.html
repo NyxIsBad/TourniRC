@@ -76,7 +76,7 @@
     </div>
     <!-- Actions bar -->
     <div>
-        <div class="max-w-none my-4 bg-base-100 p-4 ml-4 mr-4 rounded shadow-md h-[80vh] w-[35vw]">
+        <div class="max-w-none my-4 bg-base-100 p-4 ml-4 mr-4 rounded shadow-md h-[80vh] w-[35vw] overflow-y-auto">
             <div class="collapse collapse-arrow join-item border rounded border-base-content mb-1">
                 <input type="checkbox" name="accordion" checked="checked" />
                 <div class="collapse-title text-xl font-medium">Channel Info</div>
@@ -86,7 +86,46 @@
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
                             <path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
                         </svg>
-                        <a href="https://osu.ppy.sh/mp/114546263" target="_blank" rel="noopener noreferrer" class="link text-accent w-full overflow-hidden text-ellipsis whitespace-nowrap">MP Name (links to MP) AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA</a>
+                        <a href="https://osu.ppy.sh/mp/114546263" target="_blank" rel="noopener noreferrer" class="link text-accent w-full overflow-hidden text-ellipsis whitespace-nowrap">MP Name (links to MP) Testing for overflow overflow overflow overflow</a>
+                    </div>
+                    <!-- row 2 -->
+                    <div class="flex flex-row items-start w-[30vw]">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 8.25h15m-16.5 7.5h15m-1.8-13.5-3.9 19.5m-2.1-19.5-3.9 19.5" />
+                        </svg>
+                        <p class="font-semibold mr-1">Match Size: </p>
+                        <p class="mr-2">16</p>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0 0 12 15.75a7.488 7.488 0 0 0-5.982 2.975m11.963 0a9 9 0 1 0-11.963 0m11.963 0A8.966 8.966 0 0 1 12 21a8.966 8.966 0 0 1-5.982-2.275M15 9.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                        </svg>
+                        <p class="font-semibold mr-1">Users: </p>
+                        <p class="mr-2">1</p>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                        </svg>
+                        <p class="font-semibold mr-1">Timer: </p>
+                        <p>No timer active</p>
+                    </div>
+                    <!-- row 3 -->
+                    <div class="flex flex-row items-start w-[30vw]">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" />
+                        </svg>
+                        <p class="font-semibold mr-1">Format: </p>
+                        <p class="mr-2">Head To Head</p>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 9h3.75M15 12h3.75M15 15h3.75M4.5 19.5h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Zm6-10.125a1.875 1.875 0 1 1-3.75 0 1.875 1.875 0 0 1 3.75 0Zm1.294 6.336a6.721 6.721 0 0 1-3.17.789 6.721 6.721 0 0 1-3.168-.789 3.376 3.376 0 0 1 6.338 0Z" />
+                        </svg>                          
+                        <p class="font-semibold mr-1">Mode: </p>
+                        <p>osu</p>
+                    </div>
+                    <!-- row 4 -->
+                    <div class="flex flex-row items-start w-[30vw]">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 0 1-.982-3.172M9.497 14.25a7.454 7.454 0 0 0 .981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 0 0 7.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M7.73 9.728a6.726 6.726 0 0 0 2.748 1.35m8.272-6.842V4.5c0 2.108-.966 3.99-2.48 5.228m2.48-5.492a46.32 46.32 0 0 1 2.916.52 6.003 6.003 0 0 1-5.395 4.972m0 0a6.726 6.726 0 0 1-2.749 1.35m0 0a6.772 6.772 0 0 1-3.044 0" />
+                        </svg>
+                        <p class="font-semibold mr-1">Win Condition: </p>
+                        <p class="mr-2">Score</p>
                     </div>
                 </div>
             </div>
@@ -94,12 +133,33 @@
                 <input type="checkbox" name="accordion" />
                 <div class="collapse-title text-xl font-medium">Timers</div>
                 <div class="collapse-content">
-                    <p>hello</p>
+                    <!-- row 1 -->
+                    <div class="flex flex-row items-start w-[30vw]">
+                        <div class="form-control mr-4">
+                            <label class="label" for="number-input">
+                                <span class="label-text">Timer in Seconds</span>
+                            </label>
+                            <input type="number" id="number-input" value="120" class="input input-bordered w-full max-w-xs" />
+                        </div>
+                        <div class="form-control">
+                            <label class="label" for="number-input">
+                                <span class="label-text">Start Timer in Seconds</span>
+                            </label>
+                            <input type="number" id="number-input" value="10" class="input input-bordered w-full max-w-xs" />
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="collapse collapse-arrow join-item border rounded border-base-content mb-1">
                 <input type="checkbox" name="accordion" />
                 <div class="collapse-title text-xl font-medium">Maps</div>
+                <div class="collapse-content">
+                    <p>hello</p>
+                </div>
+            </div>
+            <div class="collapse collapse-arrow join-item border rounded border-base-content mb-1">
+                <input type="checkbox" name="accordion" />
+                <div class="collapse-title text-xl font-medium">Players</div>
                 <div class="collapse-content">
                     <p>hello</p>
                 </div>
