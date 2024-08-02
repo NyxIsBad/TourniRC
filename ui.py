@@ -17,7 +17,6 @@ def chat():
     print(cur_theme)
     return render_template('chat.html', cur_theme=cur_theme, themes=THEMES)
 
-
 # ---------------------
 # API Routes
 # ---------------------

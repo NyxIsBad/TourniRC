@@ -3,32 +3,51 @@
 {% block content %}
 <!-- Entire page's flexbox -->
 <div class="flex flex-row">
-    <!-- Sidebar for chat selection -->
-    <div class="max-w-sm mx-auto my-4 bg-base-100 rounded-l-lg ml-4 mr-0 p-4 border-r-2 border-base-content shadow-md h-[550px] overflow-y-auto" style="width: 12vw;">
-        <h2 class="text-xl font-bold mb-4">Channels</h2>
-        <ul>
-            <li>
-                <a href="/chat/test_channel_1" class="block px-2 bg-base-100 hover:bg-base-200 rounded">
-                    Test Channel 1
-                </a>
-            </li>
-            <li>
-                <a href="/chat/test_channel_2" class="block px-2 bg-base-100 hover:bg-base-200 rounded">
-                    Test Channel 2
-                </a>
-            </li>
-            <li>
-                <a href="/chat/test_channel_3" class="block px-2 bg-base-100 hover:bg-base-200 rounded">
-                    Test Channel 3
-                </a>
-            </li>
-            <!-- Add more channels as needed -->
-        </ul>
-    </div>
+    <style>
+        .tab {
+            padding-inline-start: .5rem;
+            padding-inline-end: .5rem;
+        }
+        .tab-close {
+            opacity: 1;
+        }
+        .tab:is(input[type="radio"]) {
+            border-bottom-right-radius: var(--rounded-btn, 0.5rem);
+            border-bottom-left-radius: var(--rounded-btn, 0.5rem);
+        }
+        .tab-container:has(:is(.tab-active, [aria-selected="true"]):not(.tab-disabled):not([disabled]),:is(input:checked)) {
+            --tw-bg-opacity: 1;
+            background-color: var(--fallback-p, oklch(var(--p) / var(--tw-bg-opacity)));
+            --tw-text-opacity: 1;
+            color: var(--fallback-pc, oklch(var(--pc) / var(--tw-text-opacity)));
+            border-radius: 0.5rem;
+        }
+    </style>
     <!-- Main chat area -->
     <!-- outer wrapper which will contain chat & player display -->
-    <div class="max-w-none mx-auto my-4 bg-base-100 ml-0 p-4 rounded-r-lg shadow-md h-[400px] flex flex-col" style="width: 60vw;">
-        <h1 class="text-2xl font-bold mb-4">Chat on channel Test Channel</h1>
+    <div class="max-w-none mx-auto my-4 bg-base-100 ml-4 p-4 rounded shadow-md h-[80vh] flex flex-col" style="width: 65vw;">
+        <!-- Channel Selector -->
+        <div role="tablist" class="tabs tabs-boxed mb-4 overflow-x-auto flex">
+            <div class="tab-container flex">
+                <input type="radio" name="tab" role="tab" class="tab" checked="checked" aria-label="Channel 1"></input>
+                <button class="tab-close mr-1 tab-content" aria-label="Close Channel 1">
+                    &times;
+                </button>
+            </div>
+            <div class="tab-container flex">
+                <input type="radio" name="tab" role="tab" class="tab" aria-label="Channel 2"></input>
+                <button class="tab-close mr-1 tab-content" aria-label="Close Channel 2">
+                    &times;
+                </button>
+            </div>
+            <div class="tab-container flex">
+                <input type="radio" name="tab" role="tab" class="tab" aria-label="Channel 3"></input>
+                <button class="tab-close mr-1 tab-content" aria-label="Close Channel 3">
+                    &times;
+                </button>
+            </div>
+        </div>
+        <h1 class="text-2xl font-bold mb-4">Channel Name</h1>
         <!-- Start of chat message rendering -->
         <div id="messages" class="flex-1 space-y-2 rounded bg-base-100 border border-base-content">
             <div class="p-2">
@@ -55,27 +74,34 @@
     </div>
     <!-- Actions bar -->
     <div>
-        <div class="join join-vertical max-w-none my-4 bg-base-100 p-4 ml-4 mr-4 shadow-md h-[550]" style="width: 30vw;">
-            <div class="collapse collapse-arrow join-item border-base-300 border">
-              <input type="radio" name="my-accordion-4" checked="checked" />
-              <div class="collapse-title text-xl font-medium">Test Module</div>
+        <div class="max-w-none my-4 bg-base-100 p-4 ml-4 mr-4 rounded shadow-md h-[80vh]" style="width: 35vw;">
+            <div class="collapse collapse-arrow join-item border rounded border-base-content mb-1">
+              <input type="checkbox" name="accordion" checked="checked" />
+              <div class="collapse-title text-xl font-medium">Match Info</div>
+              <div class="collapse-content">
+                <p>Stuff</p>
+              </div>
+            </div>
+            <div class="collapse collapse-arrow join-item border rounded border-base-content mb-1">
+              <input type="checkbox" name="accordion" />
+              <div class="collapse-title text-xl font-medium">Timers</div>
               <div class="collapse-content">
                 <p>hello</p>
               </div>
             </div>
-            <div class="collapse collapse-arrow join-item border-base-300 border">
-              <input type="radio" name="my-accordion-4" />
-              <div class="collapse-title text-xl font-medium">Test Module</div>
+            <div class="collapse collapse-arrow join-item border rounded border-base-content mb-1">
+              <input type="checkbox" name="accordion" />
+              <div class="collapse-title text-xl font-medium">Maps</div>
               <div class="collapse-content">
                 <p>hello</p>
               </div>
             </div>
-            <div class="collapse collapse-arrow join-item border-base-300 border">
-              <input type="radio" name="my-accordion-4" />
-              <div class="collapse-title text-xl font-medium">Test Module</div>
-              <div class="collapse-content">
-                <p>hello</p>
-              </div>
+            <div class="collapse collapse-arrow join-item border rounded border-base-content mb-1">
+                <input type="checkbox" name="accordion" />
+                <div class="collapse-title text-xl font-medium">Mods</div>
+                <div class="collapse-content">
+                  <p>hello</p>
+                </div>
             </div>
         </div>
     </div>

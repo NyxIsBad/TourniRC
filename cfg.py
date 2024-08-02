@@ -87,6 +87,7 @@ class uiConfig():
         self.theme = self.config['THEME']['theme']
 
     def get_theme(self):
+        self.load_config()
         return self.theme
 
     def set_theme(self, theme_name):
