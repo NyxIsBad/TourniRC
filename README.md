@@ -9,6 +9,8 @@ TourniRC aims to be a tournament reffing IRC client for osu built on python and 
 - Audio triggers for preset events & custom chat triggers
 
 ## New Features:
+- Block list
+  - Settings for users
 - Hotkeys to change channels
   - And the ability to reorder them
 - Persistent 1-click data storage for individual tournaments (useful for refs who are reffing multiple lobbies from different tournaments at once with different timer rulesets, or for refs who simply don't want to re-set the values every time)
