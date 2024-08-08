@@ -1,5 +1,6 @@
 import osu_irc
 import logging
+from flask_socketio import SocketIO, emit, join_room, leave_room, send, close_room, rooms, disconnect
 from typing import *
 
 class Client(osu_irc.Client):

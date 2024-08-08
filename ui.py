@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify
+from flask_socketio import SocketIO, emit, join_room, leave_room, send, close_room, rooms, disconnect
 from waitress import serve
 from cfg import uiConfig, THEMES
-from osu_irc import Message
 
 from typing import *
 
