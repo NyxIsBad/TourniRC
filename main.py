@@ -1,3 +1,10 @@
+import gevent.monkey
+gevent.monkey.patch_all()
+
+import asyncio 
+import asyncio_gevent 
+asyncio.set_event_loop_policy(asyncio_gevent.EventLoopPolicy())
+
 import multiprocessing
 import signal
 import sys
@@ -36,8 +43,9 @@ if __name__ == "__main__":
 
         print(f"Username: {username}")
         print(f"Password: {type(password)}")
-
+        print(f"Making client")
         me = Client(token=password, nickname=username, logger=Log)
+        print(f"Starting client")
         me.run()
     except KeyboardInterrupt:
         # Handle any cleanup if necessary

@@ -1,4 +1,5 @@
 from typing import TYPE_CHECKING, Optional
+import time
 if TYPE_CHECKING:
 	from .client import Client as OsuClient
 	from .user import User as OsuUser
@@ -42,6 +43,7 @@ class Message(object):
 		self._user_name:Optional[str] = None
 		self._room_name:Optional[str] = None
 		self._content:Optional[str] = None
+		self._time_recv:Optional[float] = None
 
 		# classes
 		self.Author:Optional["OsuUser"] = None
@@ -67,6 +69,7 @@ class Message(object):
 		d["is_action"] = self.is_action
 		d["is_private"] = self.is_private
 		d["channel_type"] = self.channel_type
+		d["time_recv"] = self.time_recv
 		return d
 
 	def messageBuild(self, raw:str) -> None:
@@ -86,6 +89,9 @@ class Message(object):
 		search = re.search(ReContent, raw)
 		if search:
 			self._content = search.group(1)
+
+		# _time_recv
+		self._time_recv = time.time()
 
 		self.checkType()
 		self.checkAction()
@@ -144,6 +150,10 @@ class Message(object):
 		if self._channel_type == CHANNEL_TYPE_ROOM: return "Room"
 		if self._channel_type == CHANNEL_TYPE_PM: return "PM"
 		else: return "Unknown"
+
+	@property
+	def time_recv(self) -> float:
+		return float(self._time_recv or 0)
 
 	@property
 	def is_private(self) -> bool:

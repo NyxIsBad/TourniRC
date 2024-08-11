@@ -1,3 +1,5 @@
+S:/Code/TourniRC/.venv/Scripts/activate
+
 # TourniRC
 
 TourniRC aims to be a tournament reffing IRC client for osu built on python and flask. As a consequence of commonplace sheet practice, some commands & features that I would honestly like to have for the sake of completeness weren't added because it would make them redundant. It aims to do what BrigittaBlazor and c4o haven't done by providing:

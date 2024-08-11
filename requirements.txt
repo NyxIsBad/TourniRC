@@ -1,2 +1,7 @@
+asyncio_gevent==0.2.3
 Flask==3.0.3
+Flask_SocketIO==5.3.6
+gevent==22.10.2
 waitress==3.0.0
+gevent-websocket==0.10.1
+websocket-client==1.8.0

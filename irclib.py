@@ -1,7 +1,8 @@
 import osu_irc
 import logging
-from flask_socketio import SocketIO, emit, join_room, leave_room, send, close_room, rooms, disconnect
+from socketio import Client as sioClient
 from typing import *
+import ui
 
 class Client(osu_irc.Client):
     def __init__(self, token: str, nickname: str, logger: logging.Logger):
@@ -9,6 +10,8 @@ class Client(osu_irc.Client):
         self.logger = logger
         self.msgs = {}
         self.chats = {}
+        self.sio = sioClient()
+        self.sio.connect('http://127.0.0.1:5000')
 
     async def onReady(self):
         # although we default to osu for debugging, we eventually want this to be Bancho Bot later.
@@ -19,6 +22,7 @@ class Client(osu_irc.Client):
         if message.room_name not in self.chats:
             self.chats[message.room_name] = Chat(message.room_name, message.channel_type)
         self.chats[message.room_name].add_message(message)
+        self.sio.emit('irc_msg', message.compact())
         print(f"Message from {message.user_name}: {message.content}")
 
 class Chat():
@@ -49,5 +53,5 @@ class Chat():
     def get_messages(self) -> List[osu_irc.Message]:
         return self.messages
     
-    def clear_messaegs(self):
+    def clear_messages(self):
         self.messages.clear()

@@ -1,12 +1,11 @@
 Currently need to:
-- Set up chat window
 - Send messages
 - Login screen
 
+- Inter server communication
 - Ping timeout
 - All the features in readme
 - Figure out disconnect reasons
-- UI/localhost w/ Flask
 - Tournament config + functionality
   - Timezone toggling
   - Buttons to send
