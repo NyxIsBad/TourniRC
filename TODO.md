@@ -1,3 +1,5 @@
+S:/Code/TourniRC/.venv/Scripts/activate
+
 Currently need to:
 - Send messages
 - Login screen

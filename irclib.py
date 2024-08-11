@@ -4,6 +4,7 @@ from socketio import Client as sioClient
 from typing import *
 import ui
 
+
 class Client(osu_irc.Client):
     def __init__(self, token: str, nickname: str, logger: logging.Logger):
         super().__init__(token=token, nickname=nickname)
@@ -22,7 +23,7 @@ class Client(osu_irc.Client):
         if message.room_name not in self.chats:
             self.chats[message.room_name] = Chat(message.room_name, message.channel_type)
         self.chats[message.room_name].add_message(message)
-        self.sio.emit('irc_msg', message.compact())
+        self.sio.emit('recv_msg', message.compact())
         print(f"Message from {message.user_name}: {message.content}")
 
 class Chat():

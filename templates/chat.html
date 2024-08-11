@@ -202,11 +202,18 @@
         </div>
     </div>
 </div>
-<script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js" integrity="sha512-q/dWJ3kcmjBLU4Qc47E4A9kTB4m3wuTY7vkFJDTZKjTs8jhyGQnaUrxa0Ytd0ssMZhbNua9hE+E7Qv1j+DyZwA==" crossorigin="anonymous"></script>
+<script type="text/javascript" charset="utf-8">
+    // Send message to server
     document.addEventListener('DOMContentLoaded', () => {
+        socket.on('recv_msg', function(data) {
+            console.log("Received a message!")
+            console.log(data.message);
+        })
         const form = document.getElementById('message-form');
         const messageInput = document.getElementById('message-input');
 
+        socket.on()
         form.addEventListener('submit', (e) => {
             e.preventDefault();
 
@@ -215,21 +222,8 @@
 
             // Clear the input field
             messageInput.value = '';
-            fetch("{{ url_for('send_message') }}", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({ message })
-            }).then(response => {
-                if (response.ok) {
-                    console.log("Message sent successfully");
-                } else {
-                    console.error("Message failed");
-                }
-            }).catch(error => {
-                console.error("Error sending message:", error);
-            });
+            
+            socket.emit('send_msg', { message: message });
         });
     });
 </script>

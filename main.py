@@ -8,16 +8,13 @@ asyncio.set_event_loop_policy(asyncio_gevent.EventLoopPolicy())
 import multiprocessing
 import signal
 import sys
-from irclib import *
+from irclib import Client
 from cfg import userConfig
 from irclog import *
 import ui
 
 # Initialize the logger
 Log = create_logger('logs/irc.log')
-
-def start_ui():
-    ui.prod_run()
 
 def signal_handler(sig, frame, ui_process):
     print('Shutting down...')
@@ -26,8 +23,12 @@ def signal_handler(sig, frame, ui_process):
     sys.exit(0)
 
 if __name__ == "__main__":
-    # Launch UI in a separate process
-    ui_process = multiprocessing.Process(target=start_ui)
+    """
+    Launch UI in a separate process;
+    basically we have the option of sending UI or IRC to a separate process
+    We choose UI because IRC as currently written needs the MainThread event loop
+    """
+    ui_process = multiprocessing.Process(target=ui.prod_run)
     ui_process.start()
 
     # Register signal handler for graceful shutdown
@@ -51,4 +52,4 @@ if __name__ == "__main__":
         # Handle any cleanup if necessary
         signal_handler(signal.SIGINT, None, ui_process)
 
-    logging.info('Program Exited')
+    logging.info('Main IRC Client Thread Exiting')

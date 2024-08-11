@@ -1,5 +1,9 @@
+# Prevent any personal data from being pushed to the repository - All .ini files should be generated locally
 cfg/*.ini
-__pycache__/
 
+# Node.js
 node_modules/
+
+# Python related files
 .venv/
+__pycache__/

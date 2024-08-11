@@ -3,6 +3,7 @@ from flask_socketio import SocketIO, emit, join_room, leave_room, send, close_ro
 from cfg import uiConfig, THEMES
 
 from typing import *
+import osu_irc
 
 app = Flask(__name__)
 socketio = SocketIO(app)
@@ -34,15 +35,6 @@ def set_theme():
         return jsonify(success=True), 200
     return jsonify(success=False), 400
 
-@app.route('/send_message', methods=['POST'])
-def send_message():
-    data: Dict[str, Any] = request.get_json()
-    message_content: str = data.get('message', None).strip()
-    if message_content:
-        print(f"Message sent: {message_content}")
-        return jsonify(success=True), 200
-    return jsonify(success=False), 400
-
 # ---------------------
 # SocketIO Routes
 # ---------------------
@@ -54,19 +46,23 @@ def handle_connect():
 def handle_disconnect():
     print('A Client disconnected')
 
-@socketio.on('irc_msg')
-def handle_irc_msg(data):
+@socketio.on('send_msg')
+def handle_send_msg(data: Dict[str, Any]):
+    print(f"Message sent: {data.get('message', None).strip()}")
+
+@socketio.on('recv_msg')
+def handle_recv_msg(data: Dict[str, Any]):
     print(f"Message received: {data}")
-    emit('irc_msg', data, broadcast=True)
+    emit('recv_msg', {'message': data["content"]}, broadcast=True)
 
 # ---------------------
 # Starting webserver
 # ---------------------
 def debug_run():
-    socketio.run(app, debug=True)
+    socketio.run(app, debug=True, host='localhost', port=5000)
 
 def prod_run():
-    socketio.run(app, debug=False)
+    socketio.run(app, debug=False, host='localhost', port=5000)
 
 # ---------------------
 # Used for debug since we will call from main normally
