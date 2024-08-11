@@ -3,6 +3,7 @@ from flask_socketio import SocketIO, emit, join_room, leave_room, send, close_ro
 from cfg import uiConfig, THEMES
 
 from typing import *
+import time
 import osu_irc
 
 app = Flask(__name__)
@@ -53,7 +54,11 @@ def handle_send_msg(data: Dict[str, Any]):
 @socketio.on('recv_msg')
 def handle_recv_msg(data: Dict[str, Any]):
     print(f"Message received: {data}")
-    emit('recv_msg', {'message': data["content"]}, broadcast=True)
+    emit('bounce_msg', {
+        'time': data["time_recv"]*1000, # convert to ms
+        'user': data["user_name"],
+        'content': data["content"]
+    }, broadcast=True)
 
 # ---------------------
 # Starting webserver

@@ -3,8 +3,8 @@ S:/Code/TourniRC/.venv/Scripts/activate
 Currently need to:
 - Send messages
 - Login screen
+- Disconnect screen
 
-- Inter server communication
 - Ping timeout
 - All the features in readme
 - Figure out disconnect reasons
@@ -18,3 +18,7 @@ Currently need to:
   - Sound alerts
 - Test message functionality
   - /me messages
+
+
+- Resolve all TODO tags in all files and ID tags in HTML
+  - all CNAMES are also following ID

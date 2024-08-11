@@ -26,6 +26,7 @@
     <!-- Main chat area -->
     <!-- outer wrapper which will contain chat & player display -->
     <div class="max-w-none mx-auto my-4 bg-base-100 ml-4 p-4 rounded shadow-md h-[80vh] w-[65vw] flex flex-col">
+        <!-- TODO: ADD ALL FUNCTIONALITIES TO CH SWAPPER -->
         <!-- Channel Selector -->
         <div role="tablist" class="tabs tabs-boxed mb-4 overflow-x-auto flex">
             <div class="tab-container flex">
@@ -48,6 +49,7 @@
             </div>
         </div>
         <!-- Start of chat message rendering -->
+        <!-- TODO: Add dynamic chat rendering -->
         <div id="messages" class="flex-1 space-y-2 rounded bg-base-100 border border-base-content">
             <div class="p-2">
                 <div class="flex flex-wrap items-start overflow-x-hidden">
@@ -138,13 +140,13 @@
                             <label class="label" for="number-input">
                                 <span class="label-text">Timer in Seconds</span>
                             </label>
-                            <input type="number" id="number-input" value="120" class="input input-bordered w-full max-w-xs" />
+                            <input type="number" id="timer-input" value="120" class="input input-bordered w-full max-w-xs" />
                         </div>
                         <div class="form-control">
                             <label class="label" for="number-input">
                                 <span class="label-text">Start Timer in Seconds</span>
                             </label>
-                            <input type="number" id="number-input" value="10" class="input input-bordered w-full max-w-xs" />
+                            <input type="number" id="start-input" value="10" class="input input-bordered w-full max-w-xs" />
                         </div>
                     </div>
                     <!-- row 2 -->
@@ -204,16 +206,40 @@
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js" integrity="sha512-q/dWJ3kcmjBLU4Qc47E4A9kTB4m3wuTY7vkFJDTZKjTs8jhyGQnaUrxa0Ytd0ssMZhbNua9hE+E7Qv1j+DyZwA==" crossorigin="anonymous"></script>
 <script type="text/javascript" charset="utf-8">
-    // Send message to server
+    // functions to format time
+    function formatTime(date, utc) {
+        var hours, minutes, seconds;
+        if (utc) {
+            hours = date.getUTCHours();
+            minutes = date.getUTCMinutes();
+            seconds = date.getUTCSeconds();
+        } else {
+            hours = date.getHours();
+            minutes = date.getMinutes();
+            seconds = date.getSeconds();
+        }
+        hours = hours.toString().padStart(2, '0');
+        minutes = minutes.toString().padStart(2, '0');
+        seconds = seconds.toString().padStart(2, '0');
+        return `${hours}:${minutes}:${seconds}`;
+    }
     document.addEventListener('DOMContentLoaded', () => {
-        socket.on('recv_msg', function(data) {
-            console.log("Received a message!")
-            console.log(data.message);
-        })
+        let useUTC = true; // default to UTC
+
+        // Receive message from server
+        socket.on('bounce_msg', function(data) {
+            // Python's time.time gives seconds since epoch but we need milliseconds
+            let msg_time = new Date(data.time)
+            let formatted_time = formatTime(msg_time, useUTC);
+            let username = data.user;
+            let content = data.content;
+            // console.log(data);
+            console.log("Message: " + formatted_time + " " + username + ": " + content);
+        });
         const form = document.getElementById('message-form');
         const messageInput = document.getElementById('message-input');
-
-        socket.on()
+        
+        // Send message to server
         form.addEventListener('submit', (e) => {
             e.preventDefault();
 
