@@ -64,7 +64,7 @@
                 </div>
             </div>
         </div>
-        <form id="message-form" class="mt-4" action="/send_message" method="POST">
+        <form id="message-form" class="mt-4">
             <div class="flex">
                 <input id="message-input" type="text" name="message" class="justify-self-start flex-1 p-2 border border-base-content rounded mr-4" placeholder="Type a message...">
                 <button class="btn btn-circle btn-outline justify-self-end" title="Send Message">
@@ -151,28 +151,28 @@
                     </div>
                     <!-- row 2 -->
                     <div class="flex flex-row items-start w-[30vw]">
-                        <button class="btn btn-circle btn-outline justify-self-end mr-2" title="Begin Match Timer">
+                        <button id="match-timer-btn" class="btn btn-circle btn-outline justify-self-end mr-2" title="Begin Match Timer">
                             <svg xmlns="http://www.w3.org/2000/svg" width="2em" height="2em" viewBox="0 0 24 24">
                                 <path fill="currentColor" d="M8 20h8v-3q0-1.65-1.175-2.825T12 13t-2.825 1.175T8 17zm-3 2q-.425 0-.712-.288T4 21t.288-.712T5 20h1v-3q0-1.525.713-2.863T8.7 12q-1.275-.8-1.987-2.137T6 7V4H5q-.425 0-.712-.288T4 3t.288-.712T5 2h14q.425 0 .713.288T20 3t-.288.713T19 4h-1v3q0 1.525-.712 2.863T15.3 12q1.275.8 1.988 2.138T18 17v3h1q.425 0 .713.288T20 21t-.288.713T19 22z" />
                             </svg>
                         </button>
-                        <button class="btn btn-circle btn-outline justify-self-end bg-error mr-2" title="Begin Start Timer">
+                        <button id="start-timer-btn" class="btn btn-circle btn-outline justify-self-end bg-error mr-2" title="Begin Start Timer">
                             <svg xmlns="http://www.w3.org/2000/svg" width="2em" height="2em" viewBox="0 0 24 24">
                                 <path fill="currentColor" d="M8 20h8v-3q0-1.65-1.175-2.825T12 13t-2.825 1.175T8 17zm-3 2q-.425 0-.712-.288T4 21t.288-.712T5 20h1v-3q0-1.525.713-2.863T8.7 12q-1.275-.8-1.987-2.137T6 7V4H5q-.425 0-.712-.288T4 3t.288-.712T5 2h14q.425 0 .713.288T20 3t-.288.713T19 4h-1v3q0 1.525-.712 2.863T15.3 12q1.275.8 1.988 2.138T18 17v3h1q.425 0 .713.288T20 21t-.288.713T19 22z" />
                             </svg>
                         </button>
-                        <button class="btn btn-circle btn-outline justify-self-end mr-2" title="Check Settings">
+                        <button id="match-settings-btn" class="btn btn-circle btn-outline justify-self-end mr-2" title="Check Settings">
                             <svg xmlns="http://www.w3.org/2000/svg" width="2em" height="2em" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
                             </svg>
                         </button>
-                        <button class="btn btn-circle btn-outline justify-self-end mr-2" title="Cancel Timer">
+                        <button id="cancel-timer-btn" class="btn btn-circle btn-outline justify-self-end mr-2" title="Cancel Timer">
                             <svg xmlns="http://www.w3.org/2000/svg" width="2em" height="2em" viewBox="0 0 24 24">
                                 <path fill="currentColor" d="m20.475 23.3l-1.3-1.3H4v-2h2v-3q0-1.525.713-2.863T8.7 12q-.8-.5-1.362-1.2t-.913-1.55L.675 3.5L2.1 2.075l19.8 19.8zM15.05 12.15l-1.5-1.475q1.125-.475 1.788-1.475T16 7V4H8v1.125L6.875 4l-2-2H20v2h-2v3q0 1.6-.775 2.975T15.05 12.15M8 20h8v-1.175L10.475 13.3q-1.125.475-1.8 1.475T8 17zm10 0" />
                             </svg>
                         </button>
-                        <button class="btn btn-circle btn-outline justify-self-end bg-error mr-2" title="Abort Match">
+                        <button id="abort-btn" class="btn btn-circle btn-outline justify-self-end bg-error mr-2" title="Abort Match">
                             <svg xmlns="http://www.w3.org/2000/svg" width="2em" height="2em" viewBox="0 0 24 24">
                                 <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6.758 17.243L12.001 12m5.243-5.243L12 12m0 0L6.758 6.757M12.001 12l5.243 5.243" />
                             </svg>
@@ -236,20 +236,50 @@
             // console.log(data);
             console.log("Message: " + formatted_time + " " + username + ": " + content);
         });
-        const form = document.getElementById('message-form');
-        const messageInput = document.getElementById('message-input');
-        
+        const message_form = document.getElementById('message-form');
+        const message_input = document.getElementById('message-input');
+        const match_timer = document.getElementById('match-timer-btn');
+        const match_input = document.getElementById('timer-input');
+        const start_timer = document.getElementById('start-timer-btn');
+        const start_input = document.getElementById('start-input');
+        const match_settings = document.getElementById('match-settings-btn');
+        const cancel_timer = document.getElementById('cancel-timer-btn');
+        const abort = document.getElementById('abort-btn');
+
         // Send message to server
-        form.addEventListener('submit', (e) => {
+        message_form.addEventListener('submit', (e) => {
             e.preventDefault();
 
-            const message = messageInput.value.trim();
+            const message = message_input.value.trim();
             if (!message) return;
 
             // Clear the input field
-            messageInput.value = '';
+            message_input.value = '';
             
             socket.emit('send_msg', { message: message });
+        });
+        // Button handling
+        match_timer.addEventListener('click', (e) => {
+            let timer = match_input.value;
+            let cmd = '!mp timer ' + timer;
+            socket.emit('send_msg', { message: cmd });
+        });
+        start_timer.addEventListener('click', (e) => {
+            let timer = start_input.value;
+            let cmd = '!mp start ' + timer;
+            socket.emit('send_msg', { message: cmd });
+        });
+        match_settings.addEventListener('click', (e) => {
+            let cmd = '!mp settings';
+            socket.emit('send_msg', { message: cmd });
+        });
+        cancel_timer.addEventListener('click', (e) => {
+            let cmd = '!mp aborttimer';
+            socket.emit('send_msg', { message: cmd });
+        });
+        abort.addEventListener('click', (e) => {
+            let cmd = '!mp abort';
+            socket.emit('send_msg', { message: cmd });
         });
     });
 </script>
