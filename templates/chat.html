@@ -25,7 +25,7 @@
     </style>
     <!-- Main chat area -->
     <!-- outer wrapper which will contain chat & player display -->
-    <div class="max-w-none mx-auto my-4 bg-base-100 ml-4 p-4 rounded shadow-md h-[80vh] w-[65vw] flex flex-col">
+    <div class="max-w-[65vw] mx-auto my-4 bg-base-100 ml-4 p-4 rounded shadow-md h-[80vh] w-[65vw] flex flex-col">
         <!-- TODO: ADD ALL FUNCTIONALITIES TO CH SWAPPER -->
         <!-- Channel Selector -->
         <div id="tabs" role="tablist" class="min-h-[40px] tabs tabs-boxed mb-4 overflow-x-auto flex">
@@ -231,9 +231,18 @@
             console.log("Message: " + formatted_time + " " + username + ": " + content);
         });
         socket.on('bounce_tab_open', function(data) {
-            // Find the tab container
-            console.log('Opening tab: ' + data.name);
             const tab_container = document.getElementById('tabs');
+            var open_first= false;
+            // Set flag for opening tab if we need to
+            console.log('Opening tab: ' + data.name);
+            if (tab_container.children.length === 0) {
+                open_first = true;
+            }
+            // Prevent opening the same tab twice
+            if (document.querySelector(`input[aria-label="${data.name}"]`)) {
+                console.log('Tab already exists');
+                return;
+            }
             // Create a new tab
             const new_tab = document.createElement('div');
             new_tab.classList.add('tab-container', 'flex');
@@ -245,11 +254,12 @@
             `;
             tab_container.appendChild(new_tab);
             // If this is the first tab, select it
-            if (tab_container.children.length === 1) {
-                new_tab.click();
+            if (open_first) {
+                console.log('Opening first tab');
+                new_tab.querySelector('.tab').click();
             }
         })
-        socket.on('bounce_tab_swap', function(data) {
+        socket.on('bounce_tab_open', function(data) {
             setMessages(data.messages);
         });
         // TO server
@@ -267,18 +277,20 @@
         message_form.addEventListener('submit', (e) => {
             e.preventDefault();
 
+            // get the current tab
+            const selected_tab = document.querySelector('input[name="tab"]:checked').getAttribute('aria-label');
+
             const message = message_input.value.trim();
             if (!message) return;
 
             // Clear the input field
             message_input.value = '';
-            console.log('Sending message: ' + message);
-            socket.emit('send_msg', { message: message });
+            socket.emit('send_msg', { content: message, channel: selected_tab });
         });
         // Delegation of tab handling
         document.getElementById('tabs').addEventListener('click', (e) => {
             if (e.target.classList.contains('tab')) {
-                socket.emit('tab_swap', { tab: e.target.getAttribute('aria-label') });
+                socket.emit('tab_open', { tab: e.target.getAttribute('aria-label') });
             } else if (e.target.classList.contains('tab-close')) {
                 // Find the sibling input element
                 const sibling_tab = e.target.previousElementSibling; 

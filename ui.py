@@ -53,6 +53,7 @@ class Chat():
 class Chats():
     def __init__(self):
         self.chats: Dict[str, Chat] = {}
+        self.current_chat: str = None
     
     def add_chat(self, channel_name: str, channel_type: int) -> None:
         self.chats[channel_name] = Chat(channel_name, channel_type)
@@ -75,6 +76,12 @@ class Chats():
         else:
             self.add_chat(message['room_name'], message['channel_type'])
             self.chats[message['room_name']].add_message(message)
+        if self.current_chat == message['room_name']:
+            emit('bounce_recv_msg', {
+                'time': message["time_recv"]*1000, # convert to ms
+                'user': message["user_name"],
+                'content': message["content"]
+            }, broadcast=True)
     
     def get_messages(self, channel_name: str) -> List[List]:
         return self.chats[channel_name].messages
@@ -147,23 +154,18 @@ def handle_channel_join(data: Dict[str, Any]):
 
 @socketio.on('send_msg')
 def handle_send_msg(data: Dict[str, Any]):
-    # print(f"Message sent: {data.get('message', None).strip()}")
     emit('bounce_send_msg', {
-        'content': data.get('message', None).strip()
+        'content': data["content"].strip(),
+        'channel': data["channel"]
     }, broadcast=True)
 
 @socketio.on('recv_msg')
 def handle_recv_msg(data: Dict[str, Any]):
     chats.add_message(data)
-    emit('bounce_recv_msg', {
-        'time': data["time_recv"]*1000, # convert to ms
-        'user': data["user_name"],
-        'content': data["content"]
-    }, broadcast=True)
 
-@socketio.on('tab_swap')
-def handle_tab_swap(data: Dict[str, Any]):
-    print(f"Tab swap: {data['tab']}")
+@socketio.on('tab_open')
+def handle_tab_open(data: Dict[str, Any]):
+    print(f"Tab opened: {data['tab']}")
 
 @socketio.on('tab_close')
 def handle_tab_close(data: Dict[str, Any]):
@@ -175,6 +177,8 @@ def handle_tab_close(data: Dict[str, Any]):
 # ---------------------
 def debug_run():
     # This is meant when the UI is being run standalone, so we need to make some fake chats
+    # Adding chats is optional, since any non empty chat will automatically be added
+    # However the fake mp is empty so we add it here
     chats.add_chat("#testchat1", osu_irc.CHANNEL_TYPE_ROOM)
     chats.add_chat("testpm1", osu_irc.CHANNEL_TYPE_PM)
     chats.add_chat("#mp_12345678", osu_irc.CHANNEL_TYPE_ROOM)
@@ -182,19 +186,22 @@ def debug_run():
         'room_name': "#testchat1",
         'time_recv': htime("12:00:01 PM"),
         'user_name': "HijiriS",
-        'content': "Test Message Test Message Test Message Test Message Test Message Test Message Test Message Test Message Test Message Test Message Test Message Test Message"
+        'content': "Test Message Test Message Test Message Test Message Test Message Test Message Test Message Test Message Test Message Test Message Test Message Test Message",
+        'channel_type': osu_irc.CHANNEL_TYPE_ROOM
     })
     chats.add_message({
         'room_name': "#testchat1",
         'time_recv': mtime("18:00:02"),
         'user_name': "Test User",
-        'content': "TourniRC Test Message"
+        'content': "TourniRC Test Message",
+        'channel_type': osu_irc.CHANNEL_TYPE_ROOM
     })
     chats.add_message({
         'room_name': "testpm1",
         'time_recv': htime("8:00:01 AM"),
         'user_name': "HijiriS",
-        'content': "Test PM"
+        'content': "Test PM",
+        'channel_type': osu_irc.CHANNEL_TYPE_PM
     })
     socketio.run(app, debug=True, host='localhost', port=5000)
 
