@@ -3735,6 +3735,10 @@ details.collapse summary::-webkit-details-marker {
   max-height: 21.5rem;
 }
 
+.min-h-\[40px\] {
+  min-height: 40px;
+}
+
 .min-h-screen {
   min-height: 100vh;
 }
@@ -3828,10 +3832,10 @@ details.collapse summary::-webkit-details-marker {
   gap: 0.5rem;
 }
 
-.space-y-2 > :not([hidden]) ~ :not([hidden]) {
+.space-y-1 > :not([hidden]) ~ :not([hidden]) {
   --tw-space-y-reverse: 0;
-  margin-top: calc(0.5rem * calc(1 - var(--tw-space-y-reverse)));
-  margin-bottom: calc(0.5rem * var(--tw-space-y-reverse));
+  margin-top: calc(0.25rem * calc(1 - var(--tw-space-y-reverse)));
+  margin-bottom: calc(0.25rem * var(--tw-space-y-reverse));
 }
 
 .justify-self-start {

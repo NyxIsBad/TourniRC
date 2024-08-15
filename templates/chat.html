@@ -28,40 +28,14 @@
     <div class="max-w-none mx-auto my-4 bg-base-100 ml-4 p-4 rounded shadow-md h-[80vh] w-[65vw] flex flex-col">
         <!-- TODO: ADD ALL FUNCTIONALITIES TO CH SWAPPER -->
         <!-- Channel Selector -->
-        <div role="tablist" class="tabs tabs-boxed mb-4 overflow-x-auto flex">
-            <div class="tab-container flex">
-                <input type="radio" name="tab" role="tab" class="tab" checked="checked" aria-label="Channel 1"></input>
-                <button class="tab-close mr-1" aria-label="Close Channel 1">
-                    &times;
-                </button>
-            </div>
-            <div class="tab-container flex">
-                <input type="radio" name="tab" role="tab" class="tab" aria-label="Channel 2"></input>
-                <button class="tab-close mr-1" aria-label="Close Channel 2">
-                    &times;
-                </button>
-            </div>
-            <div class="tab-container flex">
-                <input type="radio" name="tab" role="tab" class="tab" aria-label="Channel 3"></input>
-                <button class="tab-close mr-1" aria-label="Close Channel 3">
-                    &times;
-                </button>
-            </div>
+        <div id="tabs" role="tablist" class="min-h-[40px] tabs tabs-boxed mb-4 overflow-x-auto flex">
+            <!-- Tabs will go here -->
         </div>
         <!-- Start of chat message rendering -->
         <!-- TODO: Add dynamic chat rendering -->
         <div class="flex-1 space-y-1 rounded bg-base-100 border border-base-content overflow-y-auto">
             <div id="messages" class="p-2">
-                <div class="flex flex-wrap items-start overflow-x-hidden">
-                    <time class="mr-1 whitespace-nowrap">12:00:00</time>
-                    <p class="font-semibold mr-1 whitespace-nowrap">HijiriS:</p>
-                    <p class="flex-1 overflow-hidden text-ellipsis">Test Message Test Message Test Message Test Message Test Message Test Message Test Message Test Message Test Message Test Message Test Message Test Message </p>
-                </div>
-                <div class="flex flex-wrap items-start overflow-x-hidden">
-                    <time class="mr-1 whitespace-nowrap">24:00:01</time>
-                    <p class="font-semibold mr-1 whitespace-nowrap">Test User:</p>
-                    <p class="flex-1 overflow-hidden text-ellipsis">Test Message</p>
-                </div>
+                <!-- Chats will go here -->
             </div>
         </div>
         <form id="message-form" class="mt-4">
@@ -227,7 +201,7 @@
         const messages = document.getElementById('messages');
         messages.innerHTML = '';
     }
-    function setMessages(messages) {
+    function setMessages(message_list) {
         const messages = document.getElementById('messages');
         clearMessages();
         // messages is a list of objects with time/user/content
@@ -256,6 +230,25 @@
             messages.appendChild(message_element);
             console.log("Message: " + formatted_time + " " + username + ": " + content);
         });
+        socket.on('bounce_tab_open', function(data) {
+            // Find the tab container
+            console.log('Opening tab: ' + data.name);
+            const tab_container = document.getElementById('tabs');
+            // Create a new tab
+            const new_tab = document.createElement('div');
+            new_tab.classList.add('tab-container', 'flex');
+            new_tab.innerHTML = `
+                <input type="radio" name="tab" role="tab" class="tab" aria-label="${data.name}"></input>
+                <button class="tab-close mr-1" aria-label="Close ${data.name}">
+                    &times;
+                </button>
+            `;
+            tab_container.appendChild(new_tab);
+            // If this is the first tab, select it
+            if (tab_container.children.length === 1) {
+                new_tab.click();
+            }
+        })
         socket.on('bounce_tab_swap', function(data) {
             setMessages(data.messages);
         });
@@ -279,16 +272,14 @@
 
             // Clear the input field
             message_input.value = '';
-            
+            console.log('Sending message: ' + message);
             socket.emit('send_msg', { message: message });
         });
-        document.querySelectorAll('.tab').forEach(tab => {
-            tab.addEventListener('click', (e) => {
+        // Delegation of tab handling
+        document.getElementById('tabs').addEventListener('click', (e) => {
+            if (e.target.classList.contains('tab')) {
                 socket.emit('tab_swap', { tab: e.target.getAttribute('aria-label') });
-            });
-        });
-        document.querySelectorAll('.tab-close').forEach(tab => {
-            tab.addEventListener('click', (e) => {
+            } else if (e.target.classList.contains('tab-close')) {
                 // Find the sibling input element
                 const sibling_tab = e.target.previousElementSibling; 
                 // Find the parent tab-container
@@ -298,12 +289,13 @@
                     socket.emit('tab_close', { tab: sibling_tab.getAttribute('aria-label') });
                     // Clear the tab
                     tab_container.remove();
+                    clearMessages();
                     // Load the first tab
                     document.querySelector('.tab').click();
+                    // After this tab swap will be handled by the above tab swap logic
                 }
-            });
+            }
         });
-
         // Button handling
         match_timer.addEventListener('click', (e) => {
             socket.emit('send_msg', { message: '!mp timer '+match_input.value });

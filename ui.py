@@ -4,15 +4,25 @@ from cfg import uiConfig, THEMES
 
 from typing import *
 import time
+from datetime import datetime
 import osu_irc
 
 app = Flask(__name__)
 socketio = SocketIO(app)
 config = uiConfig()
 
-#---------------------
+# ---------------------
+# Helper Functions
+# ---------------------
+def mtime(time: str) -> float:
+    return datetime.strptime(time, "%H:%M:%S").replace(year=2024, month=1, day=1).timestamp()
+
+def htime(time: str) -> float:
+    return datetime.strptime(time, "%I:%M:%S %p").replace(year=2024, month=1, day=1).timestamp()
+
+# ---------------------
 # Chat Classes
-#---------------------
+# ---------------------
 class Chat():
     def __init__(self, channel_name: str, channel_type: int):
         self.type = channel_type
@@ -119,6 +129,11 @@ def set_theme():
 # ---------------------
 @socketio.on('connect')
 def handle_connect():
+    # Broadcast chats
+    for chat in chats.chats.values():
+        emit('bounce_tab_open', {
+            'name': chat.channel_name
+        })
     print('A Client connected')
 
 @socketio.on('disconnect')
@@ -158,10 +173,29 @@ def handle_tab_close(data: Dict[str, Any]):
 # ---------------------
 # Starting webserver
 # ---------------------
-def start():
-    debug_run()
-
 def debug_run():
+    # This is meant when the UI is being run standalone, so we need to make some fake chats
+    chats.add_chat("#testchat1", osu_irc.CHANNEL_TYPE_ROOM)
+    chats.add_chat("testpm1", osu_irc.CHANNEL_TYPE_PM)
+    chats.add_chat("#mp_12345678", osu_irc.CHANNEL_TYPE_ROOM)
+    chats.add_message({
+        'room_name': "#testchat1",
+        'time_recv': htime("12:00:01 PM"),
+        'user_name': "HijiriS",
+        'content': "Test Message Test Message Test Message Test Message Test Message Test Message Test Message Test Message Test Message Test Message Test Message Test Message"
+    })
+    chats.add_message({
+        'room_name': "#testchat1",
+        'time_recv': mtime("18:00:02"),
+        'user_name': "Test User",
+        'content': "TourniRC Test Message"
+    })
+    chats.add_message({
+        'room_name': "testpm1",
+        'time_recv': htime("8:00:01 AM"),
+        'user_name': "HijiriS",
+        'content': "Test PM"
+    })
     socketio.run(app, debug=True, host='localhost', port=5000)
 
 def prod_run():
