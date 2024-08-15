@@ -210,11 +210,29 @@
         const messages = document.getElementById('messages');
         messages.innerHTML = '';
     }
-    function setMessages(message_list) {
+    function makeMessage(time, user, content) {
+        const message_element = document.createElement('div');
+        message_element.classList.add('flex', 'flex-wrap', 'items-start', 'overflow-x-hidden');
+        message_element.innerHTML = `
+            <time class="mr-1 whitespace-nowrap">${time}</time>
+            <a href="https://osu.ppy.sh/users/${user}", target="_blank" rel="noopener noreferrer" class="font-semibold mr-1 whitespace-nowrap">${user}:</a>
+            <p class="flex-1 overflow-hidden text-ellipsis">${content}</p>
+        `;
+        return message_element;
+    }
+    function setMessages(message_list, useUTC) {
         const messages = document.getElementById('messages');
         clearMessages();
-        console.log(message_list)
-        // messages is a list of objects with time/user/content
+        
+        // messages is a list of lists with each list having time/user/content
+        message_list.forEach(message => {
+            const [time, username, content] = message
+            msg_time = new Date(time);
+            formatted_time = formatTime(msg_time, useUTC);
+            const message_element = makeMessage(formatted_time, username, content);
+
+            messages.appendChild(message_element);
+        });
     }
     // Socket.io/communication
     document.addEventListener('DOMContentLoaded', () => {
@@ -229,14 +247,7 @@
             let username = data.user;
             let content = data.content;
             // Create the message element
-            const message_element = document.createElement('div');
-            message_element.classList.add('flex', 'flex-wrap', 'items-start', 'overflow-x-hidden');
-
-            message_element.innerHTML = `
-                <time class="mr-1 whitespace-nowrap">${formatted_time}</time>
-                <a href="https://osu.ppy.sh/users/${username}", target="_blank" rel="noopener noreferrer" class="font-semibold mr-1 whitespace-nowrap">${username}:</a>
-                <p class="flex-1 overflow-hidden text-ellipsis">${content}</p>
-            `;
+            const message_element = makeMessage(formatted_time, username, content);
             messages.appendChild(message_element);
             console.log("Message: " + formatted_time + " " + username + ": " + content);
         });
@@ -299,7 +310,6 @@
             if (e.target.classList.contains('tab')) {
                 const channel = e.target.getAttribute('aria-label');
                 emitTabSwap(channel).then((data) => {
-                    console.log('Tab swap successful' + data);
                     setMessages(data);
                 }).catch((error) => {
                     console.error('Tab swap failed: ' + error);
