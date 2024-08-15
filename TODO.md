@@ -27,6 +27,7 @@ Currently need to:
 Go through HTML and use classes (h1, span, etc) correctly
 24 hour/12 hour time swap
 hotkeys.js
+Reconnect
 
 All Socket IO tags:
 - recv_msg: IRC to UI server, results in a bounce (added to Chats)

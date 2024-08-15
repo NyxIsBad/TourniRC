@@ -52,8 +52,14 @@ class Chat():
 
 class Chats():
     def __init__(self):
+        self.username: str = None
         self.chats: Dict[str, Chat] = {}
         self.current_chat: str = None
+        # Fetch username from osu_irc
+        socketio.on('login', self.handle_login)
+
+    def handle_login(self, data: Dict[str, Any]) -> None:
+        self.username = data['nickname']
     
     def add_chat(self, channel_name: str, channel_type: int) -> None:
         self.chats[channel_name] = Chat(channel_name, channel_type)
@@ -62,7 +68,7 @@ class Chats():
         if channel_name in self.chats:
             self.chats.pop(channel_name)
             socketio.emit('bounce_tab_close', {
-                'name': channel_name
+                'channel': channel_name
             })
         else:
             raise ValueError(f"Channel {channel_name} not found.")
@@ -139,7 +145,7 @@ def handle_connect():
     # Broadcast chats
     for chat in chats.chats.values():
         emit('bounce_tab_open', {
-            'name': chat.channel_name
+            'channel': chat.channel_name
         })
     print('A Client connected')
 
@@ -148,9 +154,9 @@ def handle_disconnect():
     print('A Client disconnected')
 
 @socketio.on('tab_open')
-def handle_channel_join(data: Dict[str, Any]):
-    print(f"Channel join: {data['name']}")
-    chats.add_chat(data['name'], data['type'])
+def handle_tab_open(data: Dict[str, Any]):
+    print(f"Channel join: {data['channel']}")
+    chats.add_chat(data['channel'], data['type'])
 
 @socketio.on('send_msg')
 def handle_send_msg(data: Dict[str, Any]):
@@ -158,19 +164,30 @@ def handle_send_msg(data: Dict[str, Any]):
         'content': data["content"].strip(),
         'channel': data["channel"]
     }, broadcast=True)
+    chats.add_message({
+        'room_name': data["channel"],
+        'time_recv': time.time(),
+        'user_name': chats.username,
+        'content': data["content"].strip()
+    })
 
 @socketio.on('recv_msg')
 def handle_recv_msg(data: Dict[str, Any]):
     chats.add_message(data)
 
-@socketio.on('tab_open')
-def handle_tab_open(data: Dict[str, Any]):
-    print(f"Tab opened: {data['tab']}")
+@socketio.on('tab_swap')
+def handle_tab_swap(data: Dict[str, Any]):
+    print(f"Tab swap: {data['channel']}")
+    chats.current_chat = data['channel']
+    messages = chats.get_messages(data['channel'])
+    print(messages)
+    emit('tab_swap_response', {'messages': messages})
+    print(f"Tab swap messages sent")
 
 @socketio.on('tab_close')
 def handle_tab_close(data: Dict[str, Any]):
     # chats.remove_chat(data['tab'])
-    print(f"Tab close: {data['tab']}")
+    print(f"Tab close: {data['channel']}")
 
 # ---------------------
 # Starting webserver
@@ -179,6 +196,7 @@ def debug_run():
     # This is meant when the UI is being run standalone, so we need to make some fake chats
     # Adding chats is optional, since any non empty chat will automatically be added
     # However the fake mp is empty so we add it here
+    chats.username = "HijiriS"
     chats.add_chat("#testchat1", osu_irc.CHANNEL_TYPE_ROOM)
     chats.add_chat("testpm1", osu_irc.CHANNEL_TYPE_PM)
     chats.add_chat("#mp_12345678", osu_irc.CHANNEL_TYPE_ROOM)
@@ -203,6 +221,7 @@ def debug_run():
         'content': "Test PM",
         'channel_type': osu_irc.CHANNEL_TYPE_PM
     })
+    print(chats.channel_names)
     socketio.run(app, debug=True, host='localhost', port=5000)
 
 def prod_run():

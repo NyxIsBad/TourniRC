@@ -17,10 +17,12 @@ class Client(osu_irc.Client):
         self.sio.on('bounce_tab_close', self.onBounceChatRemoved)
         self.sio.connect('http://127.0.0.1:5000')
 
+        self.sio.emit('login', {'nickname': nickname})
+
     async def onReady(self):
         # although we default to osu for debugging, we eventually want this to be Bancho Bot later.
         await self.joinChannel("#osu")
-        self.sio.emit('tab_open', {'name': "#osu", "type": osu_irc.CHANNEL_TYPE_ROOM})
+        self.sio.emit('tab_open', {'channel': "#osu", "type": osu_irc.CHANNEL_TYPE_ROOM})
 
     async def onMessage(self, message: osu_irc.Message):
         self.sio.emit('recv_msg', message.compact())
