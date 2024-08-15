@@ -229,7 +229,7 @@
         let useUTC = true; // default to UTC
         // FROM server
         // Receive message from server
-        socket.on('bounce_msg', function(data) {
+        socket.on('bounce_recv_msg', function(data) {
             // Python's time.time gives seconds since epoch but we need milliseconds
             let msg_time = new Date(data.time)
             let formatted_time = formatTime(msg_time, useUTC);
@@ -261,6 +261,12 @@
             
             socket.emit('send_msg', { message: message });
         });
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                socket.emit('tab_swap', { tab: e.target.getAttribute('aria-label') });
+            });
+        });
+
         // Button handling
         match_timer.addEventListener('click', (e) => {
             socket.emit('send_msg', { message: '!mp timer '+match_input.value });
