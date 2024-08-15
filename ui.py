@@ -50,7 +50,7 @@ class Chats():
     def remove_chat(self, channel_name: str) -> None:
         if channel_name in self.chats:
             self.chats.pop(channel_name)
-            socketio.emit('bounce_chat_removed', {
+            socketio.emit('bounce_tab_close', {
                 'name': channel_name
             })
         else:
@@ -119,6 +119,7 @@ def set_theme():
 # ---------------------
 @socketio.on('connect')
 def handle_connect():
+    chats.add_chat('#osu', osu_irc.CHANNEL_TYPE_ROOM)
     print('A Client connected')
 
 @socketio.on('disconnect')
@@ -144,6 +145,11 @@ def handle_recv_msg(data: Dict[str, Any]):
 @socketio.on('tab_swap')
 def handle_tab_swap(data: Dict[str, Any]):
     print(f"Tab swap: {data['tab']}")
+
+@socketio.on('tab_close')
+def handle_tab_close(data: Dict[str, Any]):
+    # chats.remove_chat(data['tab'])
+    print(f"Tab close: {data['tab']}")
 
 # ---------------------
 # Starting webserver

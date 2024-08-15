@@ -14,7 +14,7 @@ class Client(osu_irc.Client):
         self.sio = sioClient()
 
         self.sio.on('bounce_send_msg', self.onBounceSendMessage)
-        self.sio.on('bounce_chat_removed', self.onBounceChatRemoved)
+        self.sio.on('bounce_tab_close', self.onBounceChatRemoved)
         self.sio.connect('http://127.0.0.1:5000')
 
     async def onReady(self):

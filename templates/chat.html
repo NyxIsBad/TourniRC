@@ -31,19 +31,19 @@
         <div role="tablist" class="tabs tabs-boxed mb-4 overflow-x-auto flex">
             <div class="tab-container flex">
                 <input type="radio" name="tab" role="tab" class="tab" checked="checked" aria-label="Channel 1"></input>
-                <button class="tab-close mr-1 tab-content" aria-label="Close Channel 1">
+                <button class="tab-close mr-1" aria-label="Close Channel 1">
                     &times;
                 </button>
             </div>
             <div class="tab-container flex">
                 <input type="radio" name="tab" role="tab" class="tab" aria-label="Channel 2"></input>
-                <button class="tab-close mr-1 tab-content" aria-label="Close Channel 2">
+                <button class="tab-close mr-1" aria-label="Close Channel 2">
                     &times;
                 </button>
             </div>
             <div class="tab-container flex">
                 <input type="radio" name="tab" role="tab" class="tab" aria-label="Channel 3"></input>
-                <button class="tab-close mr-1 tab-content" aria-label="Close Channel 3">
+                <button class="tab-close mr-1" aria-label="Close Channel 3">
                     &times;
                 </button>
             </div>
@@ -264,6 +264,16 @@
         document.querySelectorAll('.tab').forEach(tab => {
             tab.addEventListener('click', (e) => {
                 socket.emit('tab_swap', { tab: e.target.getAttribute('aria-label') });
+            });
+        });
+        document.querySelectorAll('.tab-close').forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                // Find the sibling input element
+                const siblingTab = e.target.previousElementSibling; 
+
+                if (siblingTab && siblingTab.getAttribute('role') === 'tab') {
+                    socket.emit('tab_close', { tab: siblingTab.getAttribute('aria-label') });
+                }
             });
         });
 
