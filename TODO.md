@@ -23,6 +23,8 @@ Currently need to:
 - Resolve all TODO tags in all files and ID tags in HTML
   - all CNAMES are also following ID
 
+Go through HTML and use classes (h1, span, etc) correctly
+24 hour/12 hour time swap
 
 All Socket IO tags:
 - recv_msg: IRC to UI server, results in a bounce (added to Chats)

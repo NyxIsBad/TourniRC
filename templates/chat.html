@@ -50,15 +50,15 @@
         </div>
         <!-- Start of chat message rendering -->
         <!-- TODO: Add dynamic chat rendering -->
-        <div id="messages" class="flex-1 space-y-2 rounded bg-base-100 border border-base-content">
-            <div class="p-2">
+        <div class="flex-1 space-y-1 rounded bg-base-100 border border-base-content overflow-y-auto">
+            <div id="messages" class="p-2">
                 <div class="flex flex-wrap items-start overflow-x-hidden">
                     <time class="mr-1 whitespace-nowrap">12:00:00</time>
                     <p class="font-semibold mr-1 whitespace-nowrap">HijiriS:</p>
                     <p class="flex-1 overflow-hidden text-ellipsis">Test Message Test Message Test Message Test Message Test Message Test Message Test Message Test Message Test Message Test Message Test Message Test Message </p>
                 </div>
                 <div class="flex flex-wrap items-start overflow-x-hidden">
-                    <time class="mr-1 whitespace-nowrap">12:00:01</time>
+                    <time class="mr-1 whitespace-nowrap">24:00:01</time>
                     <p class="font-semibold mr-1 whitespace-nowrap">Test User:</p>
                     <p class="flex-1 overflow-hidden text-ellipsis">Test Message</p>
                 </div>
@@ -227,6 +227,11 @@
         const messages = document.getElementById('messages');
         messages.innerHTML = '';
     }
+    function setMessages(messages) {
+        const messages = document.getElementById('messages');
+        clearMessages();
+        // messages is a list of objects with time/user/content
+    }
     // Socket.io/communication
     document.addEventListener('DOMContentLoaded', () => {
         // Variables set and used by the page
@@ -241,20 +246,18 @@
             let content = data.content;
             // Create the message element
             const message_element = document.createElement('div');
-            message_element.classList.add('p-2');
+            message_element.classList.add('flex', 'flex-wrap', 'items-start', 'overflow-x-hidden');
 
             message_element.innerHTML = `
-                <div class="flex flex-wrap items-start overflow-x-hidden">
-                    <time class="mr-1 whitespace-nowrap">${formatted_time}</time>
-                    <p class="font-semibold mr-1 whitespace-nowrap">${username}:</p>
-                    <p class="flex-1 overflow-hidden text-ellipsis">${content}</p>
-                </div>
+                <time class="mr-1 whitespace-nowrap">${formatted_time}</time>
+                <a href="https://osu.ppy.sh/users/${username}", target="_blank" rel="noopener noreferrer" class="font-semibold mr-1 whitespace-nowrap">${username}:</a>
+                <p class="flex-1 overflow-hidden text-ellipsis">${content}</p>
             `;
             messages.appendChild(message_element);
             console.log("Message: " + formatted_time + " " + username + ": " + content);
         });
         socket.on('bounce_tab_swap', function(data) {
-            clearMessages();
+            setMessages(data.messages);
         });
         // TO server
         const message_form = document.getElementById('message-form');
