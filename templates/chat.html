@@ -206,7 +206,7 @@
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js" integrity="sha512-q/dWJ3kcmjBLU4Qc47E4A9kTB4m3wuTY7vkFJDTZKjTs8jhyGQnaUrxa0Ytd0ssMZhbNua9hE+E7Qv1j+DyZwA==" crossorigin="anonymous"></script>
 <script type="text/javascript" charset="utf-8">
-    // functions to format time
+    // EXT Functions
     function formatTime(date, utc) {
         var hours, minutes, seconds;
         if (utc) {
@@ -223,9 +223,11 @@
         seconds = seconds.toString().padStart(2, '0');
         return `${hours}:${minutes}:${seconds}`;
     }
+    // Socket.io/communication
     document.addEventListener('DOMContentLoaded', () => {
+        // Variables set and used by the page
         let useUTC = true; // default to UTC
-
+        // FROM server
         // Receive message from server
         socket.on('bounce_msg', function(data) {
             // Python's time.time gives seconds since epoch but we need milliseconds
@@ -236,6 +238,7 @@
             // console.log(data);
             console.log("Message: " + formatted_time + " " + username + ": " + content);
         });
+        // TO server
         const message_form = document.getElementById('message-form');
         const message_input = document.getElementById('message-input');
         const match_timer = document.getElementById('match-timer-btn');
