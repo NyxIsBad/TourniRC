@@ -119,12 +119,16 @@ def set_theme():
 # ---------------------
 @socketio.on('connect')
 def handle_connect():
-    chats.add_chat('#osu', osu_irc.CHANNEL_TYPE_ROOM)
     print('A Client connected')
 
 @socketio.on('disconnect')
 def handle_disconnect():
     print('A Client disconnected')
+
+@socketio.on('tab_open')
+def handle_channel_join(data: Dict[str, Any]):
+    print(f"Channel join: {data['name']}")
+    chats.add_chat(data['name'], data['type'])
 
 @socketio.on('send_msg')
 def handle_send_msg(data: Dict[str, Any]):

@@ -223,20 +223,38 @@
         seconds = seconds.toString().padStart(2, '0');
         return `${hours}:${minutes}:${seconds}`;
     }
+    function clearMessages() {
+        const messages = document.getElementById('messages');
+        messages.innerHTML = '';
+    }
     // Socket.io/communication
     document.addEventListener('DOMContentLoaded', () => {
         // Variables set and used by the page
         let useUTC = true; // default to UTC
         // FROM server
         // Receive message from server
+        const messages = document.getElementById('messages');
         socket.on('bounce_recv_msg', function(data) {
-            // Python's time.time gives seconds since epoch but we need milliseconds
             let msg_time = new Date(data.time)
             let formatted_time = formatTime(msg_time, useUTC);
             let username = data.user;
             let content = data.content;
-            // console.log(data);
+            // Create the message element
+            const message_element = document.createElement('div');
+            message_element.classList.add('p-2');
+
+            message_element.innerHTML = `
+                <div class="flex flex-wrap items-start overflow-x-hidden">
+                    <time class="mr-1 whitespace-nowrap">${formatted_time}</time>
+                    <p class="font-semibold mr-1 whitespace-nowrap">${username}:</p>
+                    <p class="flex-1 overflow-hidden text-ellipsis">${content}</p>
+                </div>
+            `;
+            messages.appendChild(message_element);
             console.log("Message: " + formatted_time + " " + username + ": " + content);
+        });
+        socket.on('bounce_tab_swap', function(data) {
+            clearMessages();
         });
         // TO server
         const message_form = document.getElementById('message-form');
@@ -269,10 +287,16 @@
         document.querySelectorAll('.tab-close').forEach(tab => {
             tab.addEventListener('click', (e) => {
                 // Find the sibling input element
-                const siblingTab = e.target.previousElementSibling; 
+                const sibling_tab = e.target.previousElementSibling; 
+                // Find the parent tab-container
+                const tab_container = e.target.parentElement;
 
-                if (siblingTab && siblingTab.getAttribute('role') === 'tab') {
-                    socket.emit('tab_close', { tab: siblingTab.getAttribute('aria-label') });
+                if (sibling_tab && sibling_tab.getAttribute('role') === 'tab') {
+                    socket.emit('tab_close', { tab: sibling_tab.getAttribute('aria-label') });
+                    // Clear the tab
+                    tab_container.remove();
+                    // Load the first tab
+                    document.querySelector('.tab').click();
                 }
             });
         });

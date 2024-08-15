@@ -20,7 +20,7 @@ class Client(osu_irc.Client):
     async def onReady(self):
         # although we default to osu for debugging, we eventually want this to be Bancho Bot later.
         await self.joinChannel("#osu")
-        self.logger.info(f"Connected to server")
+        self.sio.emit('tab_open', {'name': "#osu", "type": osu_irc.CHANNEL_TYPE_ROOM})
 
     async def onMessage(self, message: osu_irc.Message):
         self.sio.emit('recv_msg', message.compact())
@@ -31,3 +31,4 @@ class Client(osu_irc.Client):
 
     def onBounceChatRemoved(self, data: Dict[str, Any]):
         print(f"Chat removed: {data}")
+        # TODO: Leave channel with partChannel
