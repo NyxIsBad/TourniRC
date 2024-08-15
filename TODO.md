@@ -8,6 +8,7 @@ Currently need to:
 - Ping timeout
 - All the features in readme
 - Figure out disconnect reasons
+- Team colors
 - Tournament config + functionality
   - Timezone toggling
   - Buttons to send
@@ -34,7 +35,8 @@ All Socket IO tags:
   - bounce_recv_msg: UI server to UI, added to current tab
 - send_msg: UI to UI server, results in a bounce
   - bounce_send_msg: UI server to IRC server
-- tab_swap: UI to UI server, returns with messages (TODO: Make this async promise)
+- tab_swap: UI to UI server, returns with messages
+  - tab_swap_response: UI server to UI, has messages
 - tab_close: UI to UI server, deletes the chat. (TODO: Delete the chat on the UI as well)
   - bounce_tab_close: Close the connection by leaving the channel (TODO: implement)
 - tab_open: IRC to UI server, results in a bounce (added to Chats)

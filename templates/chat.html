@@ -203,7 +203,7 @@
             socket.once('tab_swap_response', function(data) {
                 resolve(data.messages);
             });
-            // we just pretend reject doesn't exist quick and dirty lol
+            // let's just pretend reject doesn't exist - quick and dirty, probably horrible practice, but it works?
         });
     }
     function clearMessages() {
