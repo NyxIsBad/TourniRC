@@ -263,26 +263,19 @@
         });
         // Button handling
         match_timer.addEventListener('click', (e) => {
-            let timer = match_input.value;
-            let cmd = '!mp timer ' + timer;
-            socket.emit('send_msg', { message: cmd });
+            socket.emit('send_msg', { message: '!mp timer '+match_input.value });
         });
         start_timer.addEventListener('click', (e) => {
-            let timer = start_input.value;
-            let cmd = '!mp start ' + timer;
-            socket.emit('send_msg', { message: cmd });
+            socket.emit('send_msg', { message: '!mp start '+start_input.value });
         });
         match_settings.addEventListener('click', (e) => {
-            let cmd = '!mp settings';
-            socket.emit('send_msg', { message: cmd });
+            socket.emit('send_msg', { message: '!mp settings' });
         });
         cancel_timer.addEventListener('click', (e) => {
-            let cmd = '!mp aborttimer';
-            socket.emit('send_msg', { message: cmd });
+            socket.emit('send_msg', { message: '!mp aborttimer' });
         });
         abort.addEventListener('click', (e) => {
-            let cmd = '!mp abort';
-            socket.emit('send_msg', { message: cmd });
+            socket.emit('send_msg', { message: '!mp abort' });
         });
     });
 </script>
