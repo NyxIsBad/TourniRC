@@ -1,7 +1,6 @@
 S:/Code/TourniRC/.venv/Scripts/activate
 
 TODAY:
-- Send messages
 - Team colors
 - Timezone toggles
 - Slash commands/query/join/part

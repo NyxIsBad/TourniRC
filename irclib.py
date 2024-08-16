@@ -39,7 +39,10 @@ class Client(osu_irc.Client):
     
     def onBounceSendMessage(self, data: Dict[str, Any]):
         print(f"Sending message: {data}")
-        # Distinguish if it's a private message or a channel message
+        if data['type'] == osu_irc.CHANNEL_TYPE_PM:
+            self.Loop.create_task(self.sendPM(data["channel"], data["content"]))
+        elif data['type'] == osu_irc.CHANNEL_TYPE_ROOM:
+            self.Loop.create_task(self.sendMessage(data["channel"], data["content"]))
 
     def onBounceChatRemoved(self, data: Dict[str, Any]):
         print(f"Chat removed: {data}")
