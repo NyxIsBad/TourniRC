@@ -29,13 +29,11 @@
         <!-- TODO: ADD ALL FUNCTIONALITIES TO CH SWAPPER -->
         <!-- Channel Selector -->
         <div id="tabs" role="tablist" class="min-h-[40px] tabs tabs-boxed mb-4 overflow-x-auto flex">
-            <!-- Tabs will go here -->
         </div>
         <!-- Start of chat message rendering -->
         <!-- TODO: Add dynamic chat rendering -->
         <div class="flex-1 space-y-1 rounded bg-base-100 border border-base-content overflow-y-auto">
             <div id="messages" class="p-2">
-                <!-- Chats will go here -->
             </div>
         </div>
         <form id="message-form" class="mt-4">
@@ -335,6 +333,7 @@
                 const tab_name = sibling_tab.getAttribute('aria-label');
                 // Find the parent tab-container
                 const tab_container = e.target.parentElement;
+                const tab_parent = document.getElementById('tabs');
 
                 if (sibling_tab && sibling_tab.getAttribute('role') === 'tab') {
                     socket.emit('tab_close', { channel: tab_name });
@@ -343,7 +342,14 @@
                     clearMessages();
                     if (selected_tab === tab_name) {
                         // Load the first tab if the current tab is closed
-                        document.querySelector('.tab').click();
+                        next_tab = document.querySelector('.tab');
+                        if (next_tab) {
+                            next_tab.click();
+                        } else {
+                            console.log('No tabs left');
+                            // If there are no tabs left, emit no tabs
+                            socket.emit('tab_close', { channel: '' });
+                        }
                         // After this tab swap will be handled by the above tab swap logic
                     }
                 }

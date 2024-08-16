@@ -37,7 +37,7 @@ if __name__ == "__main__":
     try:
         # Load the user configuration
         config = userConfig()
-        username = config.get_username().lower()
+        username = config.get_username()
         password = config.get_password()
 
         # TODO: check if username or pw are empty, if so set them in the website.

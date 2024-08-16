@@ -172,6 +172,13 @@ def handle_tab_open(data: Dict[str, Any]):
 
 @socketio.on('send_msg')
 def handle_send_msg(data: Dict[str, Any]):
+    # Failsafe, if we have left every chat, to prevent the buttons from sending messages
+    if chats.current_chat is None or "":
+        print("No current chat")
+        return
+    # Failsafe, this case occurs actually not infrequently, eg. the buttons
+    if "channel" not in data:
+        data["channel"] = chats.current_chat
     emit('bounce_send_msg', {
         'content': data["content"].strip(),
         'channel': data["channel"],
@@ -195,12 +202,17 @@ def handle_recv_msg(data: Dict[str, Any]):
 @socketio.on('tab_swap')
 def handle_tab_swap(data: Dict[str, Any]):
     chats.current_chat = data['channel']
+    print(f"Current Chat: {chats.current_chat}")
     messages = chats.get_messages(data['channel'])
     emit('tab_swap_response', {'messages': messages})
 
 @socketio.on('tab_close')
 def handle_tab_close(data: Dict[str, Any]):
-    chats.remove_chat(data['tab'])
+    if data['channel'] == '':
+        chats.current_chat = None
+        print(f"Current Chat: {chats.current_chat}")
+        return
+    chats.remove_chat(data['channel'])
 
 # ---------------------
 # Starting webserver
