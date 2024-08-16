@@ -1,15 +1,16 @@
 S:/Code/TourniRC/.venv/Scripts/activate
 
 Currently need to:
-- Send messages
-- Login screen
-- Disconnect screen
+- Send messages (irclib side)
+- Login screen (Do I even want to do this? Maybe it's better just to terminal log and ask user to set up the ini, since login/disconnect would require me to stop and start entire irc clients)
+- Disconnected screen/logout
 
 - Ping timeout
 - All the features in readme
-- Figure out disconnect reasons
-- Team colors
-- Tournament config + functionality
+  - Block list
+  - Room history (new UI panel)
+- Team colors (and write in regex irclib side)
+- Tournament config + functionality (Need a screen to add these, incorporate into settings?)
   - Timezone toggling
   - Buttons to send
     - Map start
@@ -23,12 +24,14 @@ Currently need to:
 
 
 - Resolve all TODO tags in all files and ID tags in HTML
-  - all CNAMES are also following ID
-
-Go through HTML and use classes (h1, span, etc) correctly
-24 hour/12 hour time swap
-hotkeys.js
-Reconnect
+- Automatically send "tab_swap" of current under the following condition: client stays open, and reconnects to server while server down. 
+  - Should be part of dc/rc logic since dc can clear chat
+- Go through HTML and use classes (h1, span, etc) correctly
+- 24 hour/12 hour time swap button (new UI panel?)
+- UTC/Local time swap button
+- Download chat logs feature (new UI panel?)
+- hotkeys.js <- not touched at all need to do all of this
+- Detect server down and await reconnect
 
 All Socket IO tags:
 - recv_msg: IRC to UI server, results in a bounce (added to Chats)
@@ -37,7 +40,7 @@ All Socket IO tags:
   - bounce_send_msg: UI server to IRC server
 - tab_swap: UI to UI server, returns with messages
   - tab_swap_response: UI server to UI, has messages
-- tab_close: UI to UI server, deletes the chat. (TODO: Delete the chat on the UI as well)
-  - bounce_tab_close: Close the connection by leaving the channel (TODO: implement)
+- tab_close: UI to UI server, deletes the chat.
+  - bounce_tab_close: Close the connection by leaving the channel (TODO: implement in irclib (PART))
 - tab_open: IRC to UI server, results in a bounce (added to Chats)
   - bounce_tab_open: Create the tab
