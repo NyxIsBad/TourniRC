@@ -117,7 +117,6 @@ chats = Chats()
 @app.route('/')
 def chat():
     cur_theme = config.get_theme()
-    print(cur_theme)
     return render_template('chat.html', cur_theme=cur_theme, themes=THEMES)
 
 # ---------------------
@@ -162,7 +161,8 @@ def handle_tab_open(data: Dict[str, Any]):
 def handle_send_msg(data: Dict[str, Any]):
     emit('bounce_send_msg', {
         'content': data["content"].strip(),
-        'channel': data["channel"]
+        'channel': data["channel"],
+        'type': chats.get_chat(data["channel"]).type
     }, broadcast=True)
     chats.add_message({
         'room_name': data["channel"],
@@ -177,17 +177,13 @@ def handle_recv_msg(data: Dict[str, Any]):
 
 @socketio.on('tab_swap')
 def handle_tab_swap(data: Dict[str, Any]):
-    print(f"Tab swap: {data['channel']}")
     chats.current_chat = data['channel']
     messages = chats.get_messages(data['channel'])
-    print(messages)
     emit('tab_swap_response', {'messages': messages})
-    print(f"Tab swap messages sent")
 
 @socketio.on('tab_close')
 def handle_tab_close(data: Dict[str, Any]):
-    # chats.remove_chat(data['tab'])
-    print(f"Tab close: {data['channel']}")
+    chats.remove_chat(data['tab'])
 
 # ---------------------
 # Starting webserver
@@ -221,7 +217,6 @@ def debug_run():
         'content': "Test PM",
         'channel_type': osu_irc.CHANNEL_TYPE_PM
     })
-    print(chats.channel_names)
     socketio.run(app, debug=True, host='localhost', port=5000)
 
 def prod_run():

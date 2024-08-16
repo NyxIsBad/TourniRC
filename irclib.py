@@ -29,7 +29,8 @@ class Client(osu_irc.Client):
         print(f"Message from {message.user_name}: {message.content}")
     
     def onBounceSendMessage(self, data: Dict[str, Any]):
-        print(f"Message bounced: {data}")
+        print(f"Sending message: {data}")
+        # Distinguish if it's a private message or a channel message
 
     def onBounceChatRemoved(self, data: Dict[str, Any]):
         print(f"Chat removed: {data}")
