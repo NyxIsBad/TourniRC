@@ -156,6 +156,9 @@ def handle_disconnect():
 def handle_tab_open(data: Dict[str, Any]):
     print(f"Channel join: {data['channel']}")
     chats.add_chat(data['channel'], data['type'])
+    emit('bounce_tab_open', {
+        'channel': data['channel']
+    }, broadcast=True)
 
 @socketio.on('send_msg')
 def handle_send_msg(data: Dict[str, Any]):

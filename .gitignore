@@ -3,7 +3,7 @@ cfg/*.ini
 
 # Node.js
 node_modules/
-output.css
+static/css/output.css
 
 # Python related files
 .venv/

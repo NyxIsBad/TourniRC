@@ -239,6 +239,10 @@ class Client(object):
 				asyncio.ensure_future(self.onUnknown(payload))
 				continue
 
+			# TODO: A potential to implement new feature regex here;
+			# sound alerts should be implemented at the client level and so should
+			# blocking ideally but doing it here would be strictly *faster*.
+
 	async def sendContent(self, content: bytes or str, ignore_limit:bool=False) -> None:
 		"""
 		used to send content of any type to osu
@@ -251,7 +255,7 @@ class Client(object):
 		if (self.traffic <= self.request_limit) or ignore_limit:
 			asyncio.ensure_future(addTraffic(self))
 			asyncio.ensure_future(self.onSend(content))
-			Log.debug(f"Client sending {len(content)} bytes of content to the ConnectionWriter")
+			Log.info(f"Client sending {len(content)} bytes of content to the ConnectionWriter")
 			self.ConnectionWriter.write(content)
 
 		else:
@@ -278,7 +282,7 @@ class Client(object):
 			destination: str = str(Chan)
 
 		destination = destination.lower().strip('#').strip(' ')
-		Log.debug(f"Sending: PRIVMSG #{destination} - {content[:50]}")
+		Log.info(f"Sending: PRIVMSG #{destination} - {content[:50]}")
 		await self.sendContent(f"PRIVMSG #{destination} :{content}\r\n")
 
 	async def sendPM(self, Us:Union[User, str], content: str):
@@ -299,7 +303,7 @@ class Client(object):
 			destination: str = str(Us)
 
 		destination = destination.lower().strip('#').strip(' ')
-		Log.debug(f"Sending: PRIVMSG {destination} - {content[:50]}")
+		Log.info(f"Sending: PRIVMSG {destination} - {content[:50]}")
 		await self.sendContent(f"PRIVMSG {destination} :{content}\r\n")
 
 	async def joinChannel(self, Chan:Union[Channel, str]):
@@ -317,7 +321,7 @@ class Client(object):
 			destination: str = str(Chan)
 
 		destination = destination.lower().strip('#')
-		Log.debug(f"Sending: JOIN #{destination}")
+		Log.info(f"Sending: JOIN #{destination}")
 		await self.sendContent(f"JOIN #{destination}\r\n")
 
 	async def partChannel(self, Chan:Union[Channel, str]):
@@ -335,7 +339,7 @@ class Client(object):
 			destination: str = str(Chan)
 
 		destination = destination.lower().strip('#')
-		Log.debug(f"Sending: PART #{destination}")
+		Log.info(f"Sending: PART #{destination}")
 		await self.sendContent(f"PART #{destination}\r\n")
 
 	# events
