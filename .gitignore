@@ -8,3 +8,6 @@ static/css/output.css
 # Python related files
 .venv/
 __pycache__/
+
+# Logs
+logs/*.log

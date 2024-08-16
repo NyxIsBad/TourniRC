@@ -14,7 +14,7 @@ from irclog import *
 import ui
 
 # Initialize the logger
-Log = create_logger('logs/irc.log')
+Log = create_logger('logs/irc.log', logging.DEBUG)
 
 def signal_handler(sig, frame, ui_process):
     print('Shutting down...')
@@ -43,10 +43,8 @@ if __name__ == "__main__":
         # TODO: check if username or pw are empty, if so set them in the website.
 
         print(f"Username: {username}")
-        print(f"Password: {type(password)}")
-        print(f"Making client")
+        print(f"Password: {password}")
         me = Client(token=password, nickname=username, logger=Log)
-        print(f"Starting client")
         me.run()
     except KeyboardInterrupt:
         # Handle any cleanup if necessary

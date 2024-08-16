@@ -52,13 +52,15 @@ class Chat():
 
 class Chats():
     def __init__(self):
+        # note that our username is always in lowercase at first because of how we read it
         self.username: str = None
         self.chats: Dict[str, Chat] = {}
         self.current_chat: str = None
         # Fetch username from osu_irc
-        socketio.on('login', self.handle_login)
+        socketio.on('nickname', self.change_nickname)
 
-    def handle_login(self, data: Dict[str, Any]) -> None:
+    def change_nickname(self, data: Dict[str, Any]) -> None:
+        print(f"User logged in: {data['nickname']}")
         self.username = data['nickname']
     
     def add_chat(self, channel_name: str, channel_type: int) -> None:
@@ -82,6 +84,9 @@ class Chats():
         else:
             self.add_chat(message['room_name'], message['channel_type'])
             self.chats[message['room_name']].add_message(message)
+            emit('bounce_tab_open', {
+                'channel': message['room_name']
+            }, broadcast=True)
         if self.current_chat == message['room_name']:
             emit('bounce_recv_msg', {
                 'time': message["time_recv"]*1000, # convert to ms
@@ -148,6 +153,11 @@ def handle_connect():
         })
     print('A Client connected')
 
+@socketio.on('nickname')
+def handle_nickname(data: Dict[str, Any]):
+    chats.username = data['nickname']
+    print(f"User logged in: {data['nickname']}")
+
 @socketio.on('disconnect')
 def handle_disconnect():
     print('A Client disconnected')
@@ -176,6 +186,10 @@ def handle_send_msg(data: Dict[str, Any]):
 
 @socketio.on('recv_msg')
 def handle_recv_msg(data: Dict[str, Any]):
+    if data["channel_type"] == osu_irc.CHANNEL_TYPE_ROOM:
+        data["room_name"] = f"#{data['room_name']}"
+    if str(data["room_name"]).lower() == chats.username.lower():
+        data["room_name"] = data["user_name"]
     chats.add_message(data)
 
 @socketio.on('tab_swap')

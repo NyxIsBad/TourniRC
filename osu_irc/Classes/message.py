@@ -145,11 +145,14 @@ class Message(object):
 		return str(self._content or "")
 
 	@property
-	def channel_type(self) -> str:
+	def channel_type(self) -> int:
+		return self._channel_type
+		"""
 		if self._channel_type == CHANNEL_TYPE_NONE: return "Unset"
 		if self._channel_type == CHANNEL_TYPE_ROOM: return "Room"
 		if self._channel_type == CHANNEL_TYPE_PM: return "PM"
 		else: return "Unknown"
+		"""
 
 	@property
 	def time_recv(self) -> float:

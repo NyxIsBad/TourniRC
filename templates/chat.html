@@ -197,6 +197,21 @@
         seconds = seconds.toString().padStart(2, '0');
         return `${hours}:${minutes}:${seconds}`;
     }
+    function urlify(text) {
+        // Match URLs and [url text] patterns
+        var urlRegex = /(https?:\/\/[^\s]+)|\[(https?:\/\/[^\s]+)\s+([^\]]+)\]/g;
+        
+        return text.replace(urlRegex, function(match, url, bracketUrl, bracketText) {
+            if (url) {
+                // Plain URL
+                return '<a class="link text-accent" href="' + url + '" target="_blank" rel="noopener noreferrer">' + url + '</a>';
+            } else if (bracketUrl && bracketText) {
+                // [url text] pattern
+                return '<a class="link text-accent" href="' + bracketUrl + '" target="_blank" rel="noopener noreferrer">' + bracketText + '</a>';
+            }
+        });
+    }
+
     function emitTabSwap(channel) {
         return new Promise((resolve, reject) => {
             socket.emit('tab_swap', { channel: channel });
@@ -216,7 +231,7 @@
         message_element.innerHTML = `
             <time class="mr-1 whitespace-nowrap">${time}</time>
             <a href="https://osu.ppy.sh/users/${user}", target="_blank" rel="noopener noreferrer" class="font-semibold mr-1 whitespace-nowrap">${user}:</a>
-            <p class="flex-1 overflow-hidden text-ellipsis">${content}</p>
+            <p class="flex-1 overflow-hidden text-ellipsis">${urlify(content)}</p>
         `;
         return message_element;
     }
