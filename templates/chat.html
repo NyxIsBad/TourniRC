@@ -223,13 +223,12 @@
     function setMessages(message_list, useUTC) {
         const messages = document.getElementById('messages');
         clearMessages();
-        
         // messages is a list of lists with each list having time/user/content
         message_list.forEach(message => {
-            const [time, username, content] = message
-            msg_time = new Date(time);
-            formatted_time = formatTime(msg_time, useUTC);
-            const message_element = makeMessage(formatted_time, username, content);
+            let [time, username, content] = message
+            let msg_time = new Date(time);
+            let formatted_time = formatTime(msg_time, useUTC);
+            let message_element = makeMessage(formatted_time, username, content);
 
             messages.appendChild(message_element);
         });
@@ -310,7 +309,7 @@
             if (e.target.classList.contains('tab')) {
                 const channel = e.target.getAttribute('aria-label');
                 emitTabSwap(channel).then((data) => {
-                    setMessages(data);
+                    setMessages(data, useUTC);
                 }).catch((error) => {
                     console.error('Tab swap failed: ' + error);
                 });
@@ -337,19 +336,19 @@
         });
         // Button handling
         match_timer.addEventListener('click', (e) => {
-            socket.emit('send_msg', { message: '!mp timer '+match_input.value });
+            socket.emit('send_msg', { content: '!mp timer '+match_input.value });
         });
         start_timer.addEventListener('click', (e) => {
-            socket.emit('send_msg', { message: '!mp start '+start_input.value });
+            socket.emit('send_msg', { content: '!mp start '+start_input.value });
         });
         match_settings.addEventListener('click', (e) => {
-            socket.emit('send_msg', { message: '!mp settings' });
+            socket.emit('send_msg', { content: '!mp settings' });
         });
         cancel_timer.addEventListener('click', (e) => {
-            socket.emit('send_msg', { message: '!mp aborttimer' });
+            socket.emit('send_msg', { content: '!mp aborttimer' });
         });
         abort.addEventListener('click', (e) => {
-            socket.emit('send_msg', { message: '!mp abort' });
+            socket.emit('send_msg', { content: '!mp abort' });
         });
     });
 </script>

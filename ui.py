@@ -33,7 +33,7 @@ class Chat():
         
     def add_message(self, message: Dict[str, Any]) -> None:
         if message['room_name'] == self.channel_name:
-            self.messages.append([message['time_recv'], message['user_name'], message['content']])
+            self.messages.append([message['time_recv']*1000, message['user_name'], message['content']])
         else:
             raise ValueError(f"Message not in channel {self.channel_name}")
         
