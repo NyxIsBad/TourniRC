@@ -19,15 +19,13 @@ class Client(osu_irc.Client):
 
         self.sio.on('bounce_send_msg', self.onBounceSendMessage)
         self.sio.on('bounce_tab_close', self.onBounceChatRemoved)
+        self.sio.on('cmd_req_ch', self.onRequestChannel)
 
     async def onReady(self):
         # although we default to osu for debugging, we eventually want this to be Bancho Bot later.
         await self.joinChannel("BanchoBot")
         self.sio.emit('tab_open', {'channel': "BanchoBot", "type": osu_irc.CHANNEL_TYPE_PM})
 
-    # An exceedingly dumb way to get the correct case for the nickname
-    # Works because osu echoes us joining any room/channel
-    # Alternative methods probably would require an api
     async def onMemberJoin(self, channel: osu_irc.Channel, user: osu_irc.User):
         print(f"Member joined {channel}: {user}")
         if user.name.lower() == self.nickname:
@@ -38,7 +36,7 @@ class Client(osu_irc.Client):
         print(f"Message from {message.user_name}: {message.content}")
     
     def onBounceSendMessage(self, data: Dict[str, Any]):
-        print(f"Sending message: {data}")
+        print(data)
         if data['type'] == osu_irc.CHANNEL_TYPE_PM:
             self.Loop.create_task(self.sendPM(data["channel"], data["content"]))
         elif data['type'] == osu_irc.CHANNEL_TYPE_ROOM:
@@ -46,4 +44,10 @@ class Client(osu_irc.Client):
 
     def onBounceChatRemoved(self, data: Dict[str, Any]):
         print(f"Chat removed: {data}")
-        # TODO: Leave channel with partChannel
+        self.Loop.create_task(self.partChannel(data["channel"]))
+
+    def onRequestChannel(self, data: Dict[str, Any]):
+        print(f"Requesting channel: {data}")
+        task = self.Loop.create_task(self.joinChannel(data["channel"]))
+        # When the task is done, we want to emit a tab_open event to the client
+        task.add_done_callback(lambda x: self.sio.emit('tab_open', {'channel': data["channel"], "type": data["type"]}))

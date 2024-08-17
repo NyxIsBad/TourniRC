@@ -1,5 +1,5 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify
-from flask_socketio import SocketIO, emit, send, disconnect
+from flask import Flask, render_template
+from flask_socketio import SocketIO, emit
 from cfg import uiConfig, THEMES
 
 from typing import *
@@ -15,16 +15,108 @@ config = uiConfig()
 # Helper Functions
 # ---------------------
 def mtime(time: str) -> float:
+    """
+    Convert a time string in the format of HH:MM:SS to a timestamp compatible with time.time()
+    """
     return datetime.strptime(time, "%H:%M:%S").replace(year=2024, month=1, day=1).timestamp()
 
 def htime(time: str) -> float:
+    """
+    Convert a time string in the format of HH:MM:SS AM/PM to a timestamp compatible with time.time()
+    """
     return datetime.strptime(time, "%I:%M:%S %p").replace(year=2024, month=1, day=1).timestamp()
+
+def case_insensitive_get(d: Dict[str, Any], key: str) -> Any:
+    """
+    Get channel name from Chats dictionary in a case insensitive manner.
+    """
+    for k in d.keys():
+        if k.lower() == key.lower():
+            return k
+    return None
+
+def start_chat(channel_name: str, channel_type: int) -> None:
+    """
+    Start a chat with a channel name and type from the UI server's side.
+    """
+    emit('cmd_req_ch', {
+        'channel': channel_name,
+        'type': channel_type
+    }, broadcast=True)
+
+def close_chat(channel_name: str) -> None:
+    """
+    Close a chat with a channel name from the UI server's side.
+    """
+    emit('cmd_part', {
+        'channel': channel_name
+    }, broadcast=True)
+
+def command_parse(command: str) -> None:
+    """
+    Parse a command string and execute it.
+    Commands: query, part, clear, timer, matchtimer
+    """
+    parts = command.strip().split(" ")
+    command = parts[0].lower()
+    args = parts[1:]
+
+    aliases = {
+        "/q": "/query",
+        "/chat": "/query",
+        "/pm": "/query",
+        "/join": "/query",
+        "/leave": "/part",
+        "/l": "/part",
+        "/close": "/part",
+        "/t": "/timer",
+        "/mt": "/matchtimer"
+    }
+
+    command = aliases.get(command, command)
+
+    if command == "/query":
+        if len(args) == 0:
+            print("Usage: /query <channel>")
+            return
+        start_chat(args[0], osu_irc.CHANNEL_TYPE_ROOM if args[0].startswith("#") else osu_irc.CHANNEL_TYPE_PM)
+    elif command == "/part":
+        if len(args) == 0:
+            close_chat(chats.current_chat)
+            return
+        close_chat(args[0])
+    elif command == "/clear":
+        chats.get_chat(chats.current_chat).clear_messages()
+        emit('cmd_clear', {}, broadcast=True)
+    elif command == "/timer":
+        if len(args) == 0:
+            handle_send_msg({
+                "content": f"!mp timer {chats.get_chat(chats.current_chat).timer}"
+            })
+            return
+        handle_send_msg({
+            "content": f"!mp timer {args[0]}"
+        })
+    elif command == "/matchtimer":
+        if len(args) == 0:
+            handle_send_msg({
+                "content": f"!mp start {chats.get_chat(chats.current_chat).start_timer}"
+            })
+            return
+        handle_send_msg({
+            "content": f"!mp start {args[0]}"
+        })
+    else:
+        print(f"Command {command} not found.")
 
 # ---------------------
 # Chat Classes
 # ---------------------
 class Chat():
     def __init__(self, channel_name: str, channel_type: int):
+        """
+        Class for a chat channel. Should only ever be created by the Chats class.
+        """
         self.type = channel_type
         self.channel_name = channel_name
         self.messages: List[List] = []
@@ -32,6 +124,9 @@ class Chat():
         self.start_timer = 5 # default to 5 seconds
         
     def add_message(self, message: Dict[str, Any]) -> None:
+        """
+        Add a message to the chat channel.
+        """
         if message['room_name'] == self.channel_name:
             self.messages.append([message['time_recv']*1000, message['user_name'], message['content']])
         else:
@@ -52,7 +147,9 @@ class Chat():
 
 class Chats():
     def __init__(self):
-        # note that our username is always in lowercase at first because of how we read it
+        """
+        Main class for handling chat messages. Should only ever be created once. Note that username is read directly from the cfg. file and not validated for case by the API.
+        """
         self.username: str = None
         self.chats: Dict[str, Chat] = {}
         self.current_chat: str = None
@@ -60,13 +157,28 @@ class Chats():
         socketio.on('nickname', self.change_nickname)
 
     def change_nickname(self, data: Dict[str, Any]) -> None:
+        """
+        Pretty important function, since we start with not having a username. This is called when the user logs in.
+        """
         print(f"User logged in: {data['nickname']}")
         self.username = data['nickname']
     
     def add_chat(self, channel_name: str, channel_type: int) -> None:
+        """
+        Add a chat channel to the chat list.
+        Called when a message comes in that isn't in the chat list or when a new chat is opened (query/add/etc)
+        """
+        if case_insensitive_get(self.chats, channel_name):
+            return
         self.chats[channel_name] = Chat(channel_name, channel_type)
+        emit('bounce_tab_open', {
+            'channel': channel_name
+        }, broadcast=True)
 
     def remove_chat(self, channel_name: str) -> None:
+        """
+        Remove a chat channel from the chat list. Bounces the tab close event to the IRC client so it can PART
+        """
         if channel_name in self.chats:
             self.chats.pop(channel_name)
             socketio.emit('bounce_tab_close', {
@@ -76,17 +188,25 @@ class Chats():
             raise ValueError(f"Channel {channel_name} not found.")
 
     def get_chat(self, channel_name: str) -> Chat:
+        """
+        Get a chat channel from the chat list.
+        """
         return self.chats.get(channel_name, None)
     
     def add_message(self, message: Dict[str, Any]) -> None:
+        """
+        Called when a message is received from the IRC client. Adds the message to the appropriate chat channel.
+        Bounces it to the UI client if the chat is currently open.
+        Also bounces the tab open event if the chat is not currently open.
+        """
+        if case_insensitive_get(self.chats, message['room_name']):
+            message['room_name'] = case_insensitive_get(self.chats, message['room_name'])
+        
         if message['room_name'] in self.chats:
             self.chats[message['room_name']].add_message(message)
         else:
             self.add_chat(message['room_name'], message['channel_type'])
             self.chats[message['room_name']].add_message(message)
-            emit('bounce_tab_open', {
-                'channel': message['room_name']
-            }, broadcast=True)
         if self.current_chat == message['room_name']:
             emit('bounce_recv_msg', {
                 'time': message["time_recv"]*1000, # convert to ms
@@ -125,24 +245,19 @@ def chat():
     return render_template('chat.html', cur_theme=cur_theme, themes=THEMES)
 
 # ---------------------
-# API Routes
+# Layout SIO Routes
 # ---------------------
-@app.route('/set_theme', methods=['POST'])
-def set_theme():
-    data: Dict[str, Any] = request.get_json()
-    if not data:
-        return jsonify(success=False, message="No data received"), 400
+@socketio.on('theme')
+def set_theme(data: Dict[str, Any]):
     # default to dark theme
     theme: str = data.get('theme', 'dark')
-    if not theme:
-        return jsonify(success=False, message="No theme received"), 400
     if theme in THEMES:
         config.set_theme(theme)
-        return jsonify(success=True), 200
-    return jsonify(success=False), 400
+    else:
+        raise ValueError(f"Theme {theme} not found.")
 
 # ---------------------
-# SocketIO Routes
+# Chat SIO Routes
 # ---------------------
 @socketio.on('connect')
 def handle_connect():
@@ -166,15 +281,15 @@ def handle_disconnect():
 def handle_tab_open(data: Dict[str, Any]):
     print(f"Channel join: {data['channel']}")
     chats.add_chat(data['channel'], data['type'])
-    emit('bounce_tab_open', {
-        'channel': data['channel']
-    }, broadcast=True)
 
 @socketio.on('send_msg')
 def handle_send_msg(data: Dict[str, Any]):
-    # Failsafe, if we have left every chat, to prevent the buttons from sending messages
-    if chats.current_chat is None or "":
+    # Failsafe, if we have left every chat, to prevent the buttons from sending messages if it's additionally not a slash command
+    if (chats.current_chat is None or "") and (data["content"][0] != "/"):
         print("No current chat")
+        return
+    if data["content"][0] == "/":
+        command_parse(data["content"])
         return
     # Failsafe, this case occurs actually not infrequently, eg. the buttons
     if "channel" not in data:
@@ -252,7 +367,7 @@ def prod_run():
     socketio.run(app, debug=False, host='localhost', port=5000)
 
 # ---------------------
-# Used for debug since we will call from main normally
+# Used for debug since we will call all methods from main.py normally
 # ---------------------
 if __name__ == "__main__":
     debug_run()

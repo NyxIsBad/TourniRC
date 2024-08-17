@@ -265,7 +265,7 @@
         });
         socket.on('bounce_tab_open', function(data) {
             const tab_container = document.getElementById('tabs');
-            var open_first= false;
+            var open_first = false;
             // Set flag for opening tab if we need to
             console.log('Opening tab: ' + data.channel);
             if (tab_container.children.length === 0) {
@@ -292,6 +292,16 @@
                 new_tab.querySelector('.tab').click();
             }
         })
+        socket.on('cmd_part', function(data) {
+            const tab = document.querySelector(`input[aria-label="${data.channel}"]`);
+            // Click the close button
+            if (tab) {
+                tab.nextElementSibling.click();
+            }
+        });
+        socket.on('cmd_clear', function(data) {
+            clearMessages();
+        });
         // TO server
         const message_form = document.getElementById('message-form');
         const message_input = document.getElementById('message-input');
@@ -307,15 +317,18 @@
         message_form.addEventListener('submit', (e) => {
             e.preventDefault();
 
-            // get the current tab
-            const selected_tab = document.querySelector('input[name="tab"]:checked').getAttribute('aria-label');
-
             const message = message_input.value.trim();
             if (!message) return;
 
-            // Clear the input field
+            // get the current tab
+            const selected_tab = document.querySelector('input[name="tab"]:checked');
+
             message_input.value = '';
-            socket.emit('send_msg', { content: message, channel: selected_tab });
+            if (!selected_tab) {
+                socket.emit('send_msg', { content: message });
+            } else {
+                socket.emit('send_msg', { content: message, channel: selected_tab.getAttribute('aria-label') });
+            }
         });
         // Delegation of tab handling
         document.getElementById('tabs').addEventListener('click', (e) => {
@@ -339,8 +352,8 @@
                     socket.emit('tab_close', { channel: tab_name });
                     // Clear the tab
                     tab_container.remove();
-                    clearMessages();
                     if (selected_tab === tab_name) {
+                        clearMessages();
                         // Load the first tab if the current tab is closed
                         next_tab = document.querySelector('.tab');
                         if (next_tab) {

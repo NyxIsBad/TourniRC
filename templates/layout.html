@@ -122,23 +122,8 @@
                     }
                     console.log('Theme:', theme);
                     document.documentElement.setAttribute('data-theme', theme);
-
-                    // Update theme on server-side
-                    fetch("{{ url_for('set_theme') }}", {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json"
-                        },
-                        body: JSON.stringify({ theme: theme })
-                    }).then(response => {
-                        if (response.ok) {
-                            console.log("Theme updated successfully");
-                        } else {
-                            console.error("Theme update failed");
-                        }
-                    }).catch(error => {
-                        console.error("Error updating theme:", error);
-                    });
+                    
+                    socket.emit('theme', {'theme': theme});
                 });
             });
         });

@@ -3,7 +3,6 @@ S:/Code/TourniRC/.venv/Scripts/activate
 TODAY:
 - Team colors
 - Timezone toggles
-- Slash commands/query/join/part
 
 Currently need to:
 - Send messages (irclib side)
@@ -26,7 +25,6 @@ Currently need to:
   - Sound alerts
 - Test message functionality
   - /me messages
-  - /query, check out osu irc docs
 
 
 - Resolve all TODO tags in all files and ID tags in HTML
@@ -50,3 +48,5 @@ All Socket IO tags:
   - bounce_tab_close: Close the connection by leaving the channel (TODO: implement in irclib (PART))
 - tab_open: IRC to UI server, results in a bounce (added to Chats)
   - bounce_tab_open: Create the tab
+- cmd_req_ch: UI server to IRC server, asking for a joinChannel
+- cmd_part: UI server to UI, deletes the chat by having the UI click the close button on the relevant chat if it exists.
