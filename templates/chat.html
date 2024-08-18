@@ -209,7 +209,18 @@
             return match;
         });
     }
-
+    function getUsernameMessages(username) {
+        const messages = document.getElementById('messages');
+        let lower_username = username.toLowerCase();
+        let matches = [];
+        messages.querySelectorAll('a').forEach((element) => {
+            console.log(element, element.textContent, lower_username+':');
+            if (element.textContent.toLowerCase() === lower_username+':') {
+                matches.push(element);
+            }
+        });
+        return matches;
+    }
     function emitTabSwap(channel) {
         return new Promise((resolve, reject) => {
             socket.emit('tab_swap', { channel: channel });
@@ -223,12 +234,19 @@
         const messages = document.getElementById('messages');
         messages.innerHTML = '';
     }
-    function makeMessage(time, user, content) {
+    function makeMessage(time, user, content, team) {
         const message_element = document.createElement('div');
         message_element.classList.add('flex', 'flex-wrap', 'items-start', 'overflow-x-hidden');
+        if (team === 1) {
+            team_class = 'text-red-500';
+        } else if (team === 2) {
+            team_class = 'text-blue-500';
+        } else {
+            team_class = '';
+        }
         message_element.innerHTML = `
             <time class="mr-1 whitespace-nowrap">${time}</time>
-            <a href="https://osu.ppy.sh/users/${user}", target="_blank" rel="noopener noreferrer" class="font-semibold mr-1 whitespace-nowrap">${user}:</a>
+            <a href="https://osu.ppy.sh/users/${user}", target="_blank" rel="noopener noreferrer" class="font-semibold mr-1 whitespace-nowrap ${team_class}">${user}:</a>
             <span class="flex-1 overflow-hidden text-ellipsis" style="white-space: pre-wrap;">${urlify(content)}</span>
         `;
         return message_element;
@@ -246,6 +264,25 @@
             messages.appendChild(message_element);
         });
     }
+    function setTeamColors(username, team) {
+        const related_messages = getUsernameMessages(username);
+        console.log(related_messages);
+        related_messages.forEach((element) => {
+            if (team === 0) {
+                // remove team color tags
+                element.classList.remove('text-red-500');
+                element.classList.remove('text-blue-500');
+            } else if (team === 1) {
+                // add team color tags
+                element.classList.remove('text-blue-500');
+                element.classList.add('text-red-500');
+            } else if (team === 2) {
+                // add team color tags
+                element.classList.remove('text-red-500');
+                element.classList.add('text-blue-500');
+            }
+        });
+    }
     // Socket.io/communication
     document.addEventListener('DOMContentLoaded', () => {
         // Variables set and used by the page
@@ -258,22 +295,31 @@
             let formatted_time = formatTime(msg_time, useUTC);
             let username = data.user;
             let content = data.content;
+            let team = data.team
             // Create the message element
-            const message_element = makeMessage(formatted_time, username, content);
+            const message_element = makeMessage(formatted_time, username, content, team);
             messages.appendChild(message_element);
             console.log("Message: " + formatted_time + " " + username + ": " + content);
+        });
+        socket.on('team_change', function(data) {
+            const selected_tab = document.querySelector('input[name="tab"]:checked');
+            if (!selected_tab) {
+                return;
+            }
+            if (selected_tab.getAttribute('aria-label') !== data.channel) {
+                return;
+            }
+            setTeamColors(data.username, data.team);
         });
         socket.on('bounce_tab_open', function(data) {
             const tab_container = document.getElementById('tabs');
             var open_first = false;
             // Set flag for opening tab if we need to
-            console.log('Opening tab: ' + data.channel);
             if (tab_container.children.length === 0) {
                 open_first = true;
             }
             // Prevent opening the same tab twice
             if (document.querySelector(`input[aria-label="${data.channel}"]`)) {
-                console.log('Tab already exists');
                 return;
             }
             // Create a new tab
@@ -288,7 +334,6 @@
             tab_container.appendChild(new_tab);
             // If this is the first tab, select it
             if (open_first) {
-                console.log('Opening first tab');
                 new_tab.querySelector('.tab').click();
             }
         })
@@ -359,6 +404,13 @@
                     if (data.match_timer) {
                         // set start timer
                         start_input.value = data.match_timer;
+                    }
+                    if (data.teams) {
+                        // teams is json object. key is username, value is team
+                        let teams = JSON.parse(data.teams);
+                        for (let [username, team] of Object.entries(teams)) {
+                            setTeamColors(username, team);
+                        }
                     }
                 }).catch((error) => {
                     console.error('Tab swap failed: ' + error);

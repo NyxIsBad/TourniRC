@@ -2,6 +2,7 @@ from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
 from cfg import uiConfig, THEMES
 
+import json
 from typing import *
 import time
 from datetime import datetime
@@ -101,18 +102,18 @@ def command_parse(command: str) -> None:
             handle_send_msg({
                 "content": f"!mp timer {chats.get_chat(chats.current_chat).timer}"
             })
-            # TODO: timer logic here
             return
         handle_send_msg({
             "content": f"!mp timer {args[0]}"
         })
+        # TODO: maybe handle timer logic here
     elif command == "/matchtimer":
         if len(args) == 0:
             handle_send_msg({
                 "content": f"!mp start {chats.get_chat(chats.current_chat).match_timer}"
             })
-            # TODO: match timer logic here
             return
+        # TODO: match timer logic here
         handle_send_msg({
             "content": f"!mp start {args[0]}"
         })
@@ -158,10 +159,12 @@ class Chat():
         """
         Change a user's team in the chat channel.
         """
+        # Should only be 0, 1, 2
         self.teams[user] = team
-        socketio.emit('team_change', {
-            'user': user,
-            'team': team
+        emit('team_change', {
+            'username': user,
+            'team': team,
+            'channel': self.channel_name
         }, broadcast=True)
 
     def set_timer(self, timer: int) -> None:
@@ -255,7 +258,8 @@ class Chats():
             emit('bounce_recv_msg', {
                 'time': message["time_recv"]*1000, # convert to ms
                 'user': message["user_name"],
-                'content': message["content"]
+                'content': message["content"],
+                'team': self.chats[message['room_name']].teams.get(message["user_name"], TEAM_NONE)
             }, broadcast=True)
     
     def get_messages(self, channel_name: str) -> List[List]:
@@ -359,10 +363,27 @@ def handle_recv_msg(data: Dict[str, Any]):
         data["room_name"] = data["user_name"]
     chats.add_message(data)
     # TODO: implement blocking, sound alerts, any required regex here
-    regex_pattern = r"Created the tournament match (https:\/\/osu.ppy.sh\/mp\/)(.*)\s(.*)"
-    matches = re.match(regex_pattern, data["content"])
-    if matches:
-        start_chat(f"#mp_{matches.group(2)}", osu_irc.CHANNEL_TYPE_ROOM)
+    create_pattern = r"Created the tournament match (https:\/\/osu.ppy.sh\/mp\/)([0-9]+)\s(.+)"
+    slot_pattern = r"Slot.*https:\/\/osu.ppy.sh\/u\/[0-9]+\s*([0-9A-z]+)\s*\[.*Team (.+)\]"
+    join_pattern = r"([0-9A-z]+) joined in slot [0-9]+ for team ([A-z]+)."
+    change_pattern = r"([0-9A-z]+) changed to ([A-z]+)"
+    if data["user_name"].lower() == "BanchoBot".lower():
+        print("BanchoBot message")
+        create = re.match(create_pattern, data["content"])
+        slot = re.match(slot_pattern, data["content"])
+        join = re.match(join_pattern, data["content"])
+        change = re.match(change_pattern, data["content"])
+        if create:
+            start_chat(f"#mp_{create.group(2)}", osu_irc.CHANNEL_TYPE_ROOM)
+        elif slot:
+            print(f"Slot: {slot.group(1)} {slot.group(2)}")
+            chats.get_chat(data['room_name']).team_change(slot.group(1), TEAM_RED if slot.group(2).lower() == "red" else TEAM_BLUE)
+        elif join:
+            print(f"Join: {join.group(1)} {join.group(2)}")
+            chats.get_chat(data['room_name']).team_change(join.group(1), TEAM_RED if join.group(2).lower() == "red" else TEAM_BLUE)
+        elif change:
+            print(f"Change: {change.group(1)} {change.group(2)}")
+            chats.get_chat(data['room_name']).team_change(change.group(1), TEAM_RED if change.group(2).lower() == "red" else TEAM_BLUE)
 
 @socketio.on('tab_swap')
 def handle_tab_swap(data: Dict[str, Any]):
@@ -372,7 +393,8 @@ def handle_tab_swap(data: Dict[str, Any]):
     emit('tab_swap_response', {
         'messages': messages,
         'timer': chats.get_chat(data['channel']).timer,
-        'match_timer': chats.get_chat(data['channel']).match_timer
+        'match_timer': chats.get_chat(data['channel']).match_timer,
+        'teams': json.dumps(chats.get_chat(data['channel']).teams)
     })
 
 @socketio.on('tab_close')
@@ -402,10 +424,18 @@ def debug_run():
     debug = True
     socketio.run(app, debug=True, host='localhost', port=5000)
 
-@socketio.on('connect')
 def debug_connect():
+    global debug
+    # For the sake of simplicity we won't have
+    # any ident procedures
+    for chat in chats.chats.values():
+        emit('bounce_tab_open', {
+            'channel': chat.channel_name
+        })
     if debug is False:
         return
+    # Careful to only run this once
+    debug = False
     chats.username = "HijiriS"
     chats.add_chat("#testchat1", osu_irc.CHANNEL_TYPE_ROOM, timer=120, match_timer=5)
     chats.add_chat("testpm1", osu_irc.CHANNEL_TYPE_PM)
@@ -438,6 +468,22 @@ def debug_connect():
         'content': "Test PM",
         'channel_type': osu_irc.CHANNEL_TYPE_PM
     })
+    chats.add_message({
+        'room_name': "#mp_12345678",
+        'time_recv': htime("8:00:01 AM"),
+        'user_name': "HijiriS",
+        'content': "Test Message for Teams",
+        'channel_type': osu_irc.CHANNEL_TYPE_ROOM
+    })
+    chats.add_message({
+        'room_name': "#mp_12345678",
+        'time_recv': htime("8:00:01 AM"),
+        'user_name': "Pof",
+        'content': "Test Message for Teams",
+        'channel_type': osu_irc.CHANNEL_TYPE_ROOM
+    })
+    chats.get_chat("#mp_12345678").team_change("HijiriS", TEAM_RED)
+    chats.get_chat("#mp_12345678").team_change("Pof", TEAM_BLUE)
 
 def prod_run():
     socketio.run(app, debug=False, host='localhost', port=5000)

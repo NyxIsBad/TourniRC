@@ -1,9 +1,5 @@
 S:/Code/TourniRC/.venv/Scripts/activate
 
-TODAY:
-- Team colors
-- Timezone toggles
-
 Currently need to:
 - Login screen (Do I even want to do this? Maybe it's better just to terminal log and ask user to set up the ini, since login/disconnect would require me to stop and start entire irc clients)
 - Disconnected screen/logout
@@ -13,6 +9,8 @@ Currently need to:
   - Block list
   - Room history (new UI panel)
 - Team colors (and write in regex irclib side)
+- Timer permanence on slash commands (/timer, /matchtimer)
+- Double click tab to rename
 - Tournament config + functionality (Need a screen to add these, incorporate into settings?)
   - Timezone toggling
   - Buttons to send
@@ -20,7 +18,6 @@ Currently need to:
   - Sound alerts
 - Test message functionality
   - /me messages
-
 
 - Resolve all TODO tags in all files and ID tags in HTML
 - Automatically send "tab_swap" of current under the following condition: client stays open, and reconnects to server while server down. 
