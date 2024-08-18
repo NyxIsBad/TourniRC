@@ -8,7 +8,6 @@ Currently need to:
 - All the features in readme
   - Block list
   - Room history (new UI panel)
-- Timer permanence on slash commands (/timer, /matchtimer)
 - Double click tab to rename
 - Tournament config + functionality (Need a screen to add these, incorporate into settings?)
   - Timezone toggling
@@ -26,6 +25,7 @@ Currently need to:
 - UTC/Local time swap button
 - Download chat logs feature (new UI panel?)
 - hotkeys.js <- not touched at all need to do all of this
+- Highlight tab when unread messages come in
 
 All Socket IO tags:
 - recv_msg: IRC to UI server, results in a bounce (added to Chats)
