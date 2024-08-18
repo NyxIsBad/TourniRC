@@ -394,16 +394,16 @@ def handle_recv_msg(data: Dict[str, Any]):
             start_chat(f"#mp_{create.group(2)}", osu_irc.CHANNEL_TYPE_ROOM)
         elif slot:
             username = slot.group(1).strip().replace(" ", "_")
-            team = TEAM_RED if slot.group(2).lower() == "red" else TEAM_BLUE
+            team = TEAM_RED if slot.group(2).strip().lower() == "red" else TEAM_BLUE
             print(f"Slot: {username} {team}")
             chats.get_chat(data['room_name']).team_change(username, team)
         elif join:
             username = join.group(1).strip().replace(" ", "_")
-            team = TEAM_RED if join.group(2).lower() == "red" else TEAM_BLUE
+            team = TEAM_RED if join.group(2).strip().lower() == "red" else TEAM_BLUE
             print(f"Join: {username} {team}")
             chats.get_chat(data['room_name']).team_change(username, team)
         elif change:
-            username = change.group(1).strip().replace(" ", "_")
+            username = change.group(1).strip().strip().replace(" ", "_")
             team = TEAM_RED if change.group(2).lower() == "red" else TEAM_BLUE
             print(f"Change: {username} {team}")
             chats.get_chat(data['room_name']).team_change(username, team)

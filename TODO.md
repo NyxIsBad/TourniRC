@@ -10,7 +10,6 @@ Currently need to:
   - Room history (new UI panel)
 - Double click tab to rename
 - Tournament config + functionality (Need a screen to add these, incorporate into settings?)
-  - Timezone toggling
   - Buttons to send
     - Map Commands by clicking a button (read from map pool info) 
   - Sound alerts
@@ -21,9 +20,12 @@ Currently need to:
 - Automatically send "tab_swap" of current under the following condition: client stays open, and reconnects to server while server down. 
   - Should be part of dc/rc logic since dc can clear chat
 - Go through HTML and use classes (h1, span, etc) correctly
-- 24 hour/12 hour time swap button (new Quick Actions UI panel?)
-- UTC/Local time swap button
-- Download chat logs feature (new UI panel?)
+- 24 hour/12 hour time swap button (Hotbar bottom of actions)
+- Query toast
+- UTC/Local time swap button (Hotbar bottom of actions)
+- Download chat logs feature (Hotbar bottom of actions)
+- Show timestamp toggle
+- Pinned msg (Hotbar on top)?
 - hotkeys.js <- not touched at all need to do all of this
 - Highlight tab when unread messages come in
 
