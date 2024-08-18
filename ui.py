@@ -381,9 +381,9 @@ def handle_recv_msg(data: Dict[str, Any]):
     chats.add_message(data)
     # TODO: implement blocking, sound alerts, any required regex here
     create_pattern = r"Created the tournament match (https:\/\/osu.ppy.sh\/mp\/)([0-9]+)\s(.+)"
-    slot_pattern = r"Slot.*https:\/\/osu.ppy.sh\/u\/[0-9]+\s*([0-9A-z]+)\s*\[.*Team (.+)\]"
-    join_pattern = r"([0-9A-z]+) joined in slot [0-9]+ for team ([A-z]+)."
-    change_pattern = r"([0-9A-z]+) changed to ([A-z]+)"
+    slot_pattern = r"Slot.*https:\/\/osu.ppy.sh\/u\/[0-9]+\s*([0-9A-z ]+)\s*\[.*Team (.+)\]"
+    join_pattern = r"([0-9A-z ]+) joined in slot [0-9]+ for team ([A-z]+)."
+    change_pattern = r"([0-9A-z ]+) changed to ([A-z]+)"
     if data["user_name"].lower() == "BanchoBot".lower():
         print("BanchoBot message")
         create = re.match(create_pattern, data["content"])
@@ -393,14 +393,20 @@ def handle_recv_msg(data: Dict[str, Any]):
         if create:
             start_chat(f"#mp_{create.group(2)}", osu_irc.CHANNEL_TYPE_ROOM)
         elif slot:
-            print(f"Slot: {slot.group(1)} {slot.group(2)}")
-            chats.get_chat(data['room_name']).team_change(slot.group(1), TEAM_RED if slot.group(2).lower() == "red" else TEAM_BLUE)
+            username = slot.group(1).strip().replace(" ", "_")
+            team = TEAM_RED if slot.group(2).lower() == "red" else TEAM_BLUE
+            print(f"Slot: {username} {team}")
+            chats.get_chat(data['room_name']).team_change(username, team)
         elif join:
-            print(f"Join: {join.group(1)} {join.group(2)}")
-            chats.get_chat(data['room_name']).team_change(join.group(1), TEAM_RED if join.group(2).lower() == "red" else TEAM_BLUE)
+            username = join.group(1).strip().replace(" ", "_")
+            team = TEAM_RED if join.group(2).lower() == "red" else TEAM_BLUE
+            print(f"Join: {username} {team}")
+            chats.get_chat(data['room_name']).team_change(username, team)
         elif change:
-            print(f"Change: {change.group(1)} {change.group(2)}")
-            chats.get_chat(data['room_name']).team_change(change.group(1), TEAM_RED if change.group(2).lower() == "red" else TEAM_BLUE)
+            username = change.group(1).strip().replace(" ", "_")
+            team = TEAM_RED if change.group(2).lower() == "red" else TEAM_BLUE
+            print(f"Change: {username} {team}")
+            chats.get_chat(data['room_name']).team_change(username, team)
 
 @socketio.on('tab_swap')
 def handle_tab_swap(data: Dict[str, Any]):
