@@ -6,6 +6,7 @@ from typing import *
 import time
 from datetime import datetime
 import osu_irc
+import re
 
 app = Flask(__name__)
 socketio = SocketIO(app)
@@ -335,8 +336,6 @@ def handle_send_msg(data: Dict[str, Any]):
     if data["content"][0] == "/":
         command_parse(data["content"])
         return
-    if '!mp ' in data["content"][0:4].lower():
-        print("Match command detected")
     # Failsafe, this case occurs actually not infrequently, eg. the buttons
     if "channel" not in data:
         data["channel"] = chats.current_chat
@@ -359,6 +358,11 @@ def handle_recv_msg(data: Dict[str, Any]):
     if str(data["room_name"]).lower() == chats.username.lower():
         data["room_name"] = data["user_name"]
     chats.add_message(data)
+    # TODO: implement blocking, sound alerts, any required regex here
+    regex_pattern = r"Created the tournament match (https:\/\/osu.ppy.sh\/mp\/)(.*)\s(.*)"
+    matches = re.match(regex_pattern, data["content"])
+    if matches:
+        start_chat(f"#mp_{matches.group(2)}", osu_irc.CHANNEL_TYPE_ROOM)
 
 @socketio.on('tab_swap')
 def handle_tab_swap(data: Dict[str, Any]):

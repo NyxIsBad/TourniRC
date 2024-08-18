@@ -7,7 +7,6 @@ TODAY:
 Currently need to:
 - Login screen (Do I even want to do this? Maybe it's better just to terminal log and ask user to set up the ini, since login/disconnect would require me to stop and start entire irc clients)
 - Disconnected screen/logout
-- Automatically create & query on mp make
 
 - Ping timeout
 - All the features in readme
@@ -27,7 +26,7 @@ Currently need to:
 - Automatically send "tab_swap" of current under the following condition: client stays open, and reconnects to server while server down. 
   - Should be part of dc/rc logic since dc can clear chat
 - Go through HTML and use classes (h1, span, etc) correctly
-- 24 hour/12 hour time swap button (new UI panel?)
+- 24 hour/12 hour time swap button (new Quick Actions UI panel?)
 - UTC/Local time swap button
 - Download chat logs feature (new UI panel?)
 - hotkeys.js <- not touched at all need to do all of this
