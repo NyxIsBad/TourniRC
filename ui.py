@@ -94,25 +94,33 @@ def command_parse(command: str) -> None:
             return
         close_chat(args[0])
     elif command == "/clear":
-        chats.get_chat(chats.current_chat).clear_messages()
+        chats.get_current_chat.clear_messages()
         # TODO: might have to add teams logic here
         emit('cmd_clear', {}, broadcast=True)
     elif command == "/timer":
         if len(args) == 0:
             handle_send_msg({
-                "content": f"!mp timer {chats.get_chat(chats.current_chat).timer}"
+                "content": f"!mp timer {chats.get_current_chat.timer}"
             })
             return
         handle_send_msg({
             "content": f"!mp timer {args[0]}"
         })
+        chats.get_current_chat.set_timer(args[0])
+        emit('set_timer_input', {
+            'timer': args[0]
+        })
         # TODO: maybe handle timer logic here
     elif command == "/matchtimer":
         if len(args) == 0:
             handle_send_msg({
-                "content": f"!mp start {chats.get_chat(chats.current_chat).match_timer}"
+                "content": f"!mp start {chats.get_current_chat.match_timer}"
             })
             return
+        chats.get_current_chat.set_match_timer(args[0])
+        emit('set_match_timer_input', {
+            'timer': args[0]
+        })
         # TODO: match timer logic here
         handle_send_msg({
             "content": f"!mp start {args[0]}"
@@ -265,15 +273,22 @@ class Chats():
     def get_messages(self, channel_name: str) -> List[List]:
         return self.chats[channel_name].messages
 
-    @property 
+    @property
+    def get_current_chat(self) -> Chat:
+        """
+        Get the current chat channel from the chat list.
+        """
+        return self.chats.get(self.current_chat, None)
+
+    @property
     def chat_count(self) -> int:
         return len(self.chats)
     
-    @property 
+    @property
     def message_count(self) -> int:
         return sum([chat.message_count for chat in self.chats.values()])
     
-    @property 
+    @property
     def channel_names(self) -> List[str]:
         return list(self.chats.keys())
 
@@ -315,6 +330,8 @@ def handle_connect():
         emit('bounce_tab_open', {
             'channel': chat.channel_name
         })
+    if debug:
+        debug_connect()
 
 @socketio.on('nickname')
 def handle_nickname(data: Dict[str, Any]):
@@ -407,11 +424,11 @@ def handle_tab_close(data: Dict[str, Any]):
 
 @socketio.on('set_timer')
 def handle_set_timer(data: Dict[str, Any]):
-    chats.get_chat(chats.current_chat).set_timer(data['timer'])
+    chats.get_current_chat.set_timer(data['timer'])
 
 @socketio.on('set_match_timer')
 def handle_set_match_timer(data: Dict[str, Any]):
-    chats.get_chat(chats.current_chat).set_match_timer(data['timer'])
+    chats.get_current_chat.set_match_timer(data['timer'])
 
 # ---------------------
 # Starting webserver
@@ -426,14 +443,6 @@ def debug_run():
 
 def debug_connect():
     global debug
-    # For the sake of simplicity we won't have
-    # any ident procedures
-    for chat in chats.chats.values():
-        emit('bounce_tab_open', {
-            'channel': chat.channel_name
-        })
-    if debug is False:
-        return
     # Careful to only run this once
     debug = False
     chats.username = "HijiriS"

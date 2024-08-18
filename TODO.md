@@ -8,7 +8,6 @@ Currently need to:
 - All the features in readme
   - Block list
   - Room history (new UI panel)
-- Team colors (and write in regex irclib side)
 - Timer permanence on slash commands (/timer, /matchtimer)
 - Double click tab to rename
 - Tournament config + functionality (Need a screen to add these, incorporate into settings?)
@@ -43,4 +42,6 @@ All Socket IO tags:
 - cmd_req_ch: UI server to IRC server, asking for a joinChannel
 - cmd_part: UI server to UI, deletes the chat by having the UI click the close button on the relevant chat if it exists.
 - set_timer: UI to UI server, sets timer value of current chat
+  - set_timer_input: UI server to UI, sets timer input value
 - set_match_timer: UI to UI server, sets mt value of current chat
+  - set_match_timer_input: UI server to UI, sets mt input value

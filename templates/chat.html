@@ -287,9 +287,20 @@
     document.addEventListener('DOMContentLoaded', () => {
         // Variables set and used by the page
         let useUTC = true; // default to UTC
+
+        const messages = document.getElementById('messages');
+        const message_form = document.getElementById('message-form');
+        const message_input = document.getElementById('message-input');
+        const match_timer = document.getElementById('match-timer-btn');
+        const match_input = document.getElementById('timer-input');
+        const start_timer = document.getElementById('start-timer-btn');
+        const start_input = document.getElementById('start-input');
+        const match_settings = document.getElementById('match-settings-btn');
+        const cancel_timer = document.getElementById('cancel-timer-btn');
+        const abort = document.getElementById('abort-btn');
+
         // FROM server
         // Receive message from server
-        const messages = document.getElementById('messages');
         socket.on('bounce_recv_msg', function(data) {
             let msg_time = new Date(data.time)
             let formatted_time = formatTime(msg_time, useUTC);
@@ -347,17 +358,13 @@
         socket.on('cmd_clear', function(data) {
             clearMessages();
         });
+        socket.on('set_timer_input', function(data) {
+            match_input.value = data.timer;
+        });
+        socket.on('set_match_timer_input', function(data) {
+            start_input.value = data.timer;
+        });
         // TO server
-        const message_form = document.getElementById('message-form');
-        const message_input = document.getElementById('message-input');
-        const match_timer = document.getElementById('match-timer-btn');
-        const match_input = document.getElementById('timer-input');
-        const start_timer = document.getElementById('start-timer-btn');
-        const start_input = document.getElementById('start-input');
-        const match_settings = document.getElementById('match-settings-btn');
-        const cancel_timer = document.getElementById('cancel-timer-btn');
-        const abort = document.getElementById('abort-btn');
-
         // Send message to server
         message_form.addEventListener('submit', (e) => {
             e.preventDefault();
