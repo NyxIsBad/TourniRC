@@ -379,6 +379,14 @@ def handle_tab_close(data: Dict[str, Any]):
         return
     chats.remove_chat(data['channel'])
 
+@socketio.on('set_timer')
+def handle_set_timer(data: Dict[str, Any]):
+    chats.get_chat(chats.current_chat).set_timer(data['timer'])
+
+@socketio.on('set_match_timer')
+def handle_set_match_timer(data: Dict[str, Any]):
+    chats.get_chat(chats.current_chat).set_match_timer(data['timer'])
+
 # ---------------------
 # Starting webserver
 # ---------------------

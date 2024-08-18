@@ -330,6 +330,22 @@
                 socket.emit('send_msg', { content: message, channel: selected_tab.getAttribute('aria-label') });
             }
         });
+        match_input.addEventListener('input', (e) => {
+            if (match_input.value < 0) {
+                match_input.value = 0;
+            }
+            if (match_input.value > 0) {
+                socket.emit('set_timer', { timer: match_input.value });
+            }
+        });
+        start_input.addEventListener('input', (e) => {
+            if (start_input.value < 0) {
+                start_input.value = 0;
+            }
+            if (start_input.value > 0) {
+                socket.emit('set_match_timer', { timer: start_input.value });
+            }
+        });
         // Delegation of tab handling
         document.getElementById('tabs').addEventListener('click', (e) => {
             if (e.target.classList.contains('tab')) {
@@ -350,6 +366,7 @@
             } else if (e.target.classList.contains('tab-close')) {
                 // Find the sibling input element
                 const sibling_tab = e.target.previousElementSibling;
+                // This HAS to exist; if it doesn't then I've fucked up real bad
                 const selected_tab = document.querySelector('input[name="tab"]:checked').getAttribute('aria-label');
                 const tab_name = sibling_tab.getAttribute('aria-label');
                 // Find the parent tab-container

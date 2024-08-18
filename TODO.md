@@ -46,3 +46,5 @@ All Socket IO tags:
   - bounce_tab_open: Create the tab
 - cmd_req_ch: UI server to IRC server, asking for a joinChannel
 - cmd_part: UI server to UI, deletes the chat by having the UI click the close button on the relevant chat if it exists.
+- set_timer: UI to UI server, sets timer value of current chat
+- set_match_timer: UI to UI server, sets mt value of current chat
