@@ -11,6 +11,12 @@ app = Flask(__name__)
 socketio = SocketIO(app)
 config = uiConfig()
 
+TEAM_RED = 1
+TEAM_BLUE = 2
+TEAM_NONE = 0
+
+debug = False
+
 # ---------------------
 # Helper Functions
 # ---------------------
@@ -63,11 +69,11 @@ def command_parse(command: str) -> None:
 
     aliases = {
         "/q": "/query",
-        "/chat": "/query",
         "/pm": "/query",
+        "/chat": "/query",
         "/join": "/query",
-        "/leave": "/part",
         "/l": "/part",
+        "/leave": "/part",
         "/close": "/part",
         "/t": "/timer",
         "/mt": "/matchtimer"
@@ -87,12 +93,14 @@ def command_parse(command: str) -> None:
         close_chat(args[0])
     elif command == "/clear":
         chats.get_chat(chats.current_chat).clear_messages()
+        # TODO: might have to add teams logic here
         emit('cmd_clear', {}, broadcast=True)
     elif command == "/timer":
         if len(args) == 0:
             handle_send_msg({
                 "content": f"!mp timer {chats.get_chat(chats.current_chat).timer}"
             })
+            # TODO: timer logic here
             return
         handle_send_msg({
             "content": f"!mp timer {args[0]}"
@@ -100,8 +108,9 @@ def command_parse(command: str) -> None:
     elif command == "/matchtimer":
         if len(args) == 0:
             handle_send_msg({
-                "content": f"!mp start {chats.get_chat(chats.current_chat).start_timer}"
+                "content": f"!mp start {chats.get_chat(chats.current_chat).match_timer}"
             })
+            # TODO: match timer logic here
             return
         handle_send_msg({
             "content": f"!mp start {args[0]}"
@@ -113,25 +122,59 @@ def command_parse(command: str) -> None:
 # Chat Classes
 # ---------------------
 class Chat():
-    def __init__(self, channel_name: str, channel_type: int):
+    def __init__(self, channel_name: str, channel_type: int, **kwargs):
         """
         Class for a chat channel. Should only ever be created by the Chats class.
         """
+
         self.type = channel_type
         self.channel_name = channel_name
         self.messages: List[List] = []
-        self.timer = 120 # default to 2 minutes
-        self.start_timer = 5 # default to 5 seconds
+        # TODO: implement this or delete it depending on feedback
+        # 1 = red, 2 = blue, 0 = none
+        self.teams: Dict[str, int] = {}
+        if 'timer' in kwargs:
+            self.timer = kwargs['timer']
+        else:
+            self.timer = 120 # default to 2 minutes
+        if 'match_timer' in kwargs:
+            self.match_timer = kwargs['match_timer']
+        else:
+            self.match_timer = 5 # default to 5 seconds
         
     def add_message(self, message: Dict[str, Any]) -> None:
         """
         Add a message to the chat channel.
         """
+        # Regex for team changes here (must be issued by BanchoBot)
         if message['room_name'] == self.channel_name:
             self.messages.append([message['time_recv']*1000, message['user_name'], message['content']])
         else:
             raise ValueError(f"Message not in channel {self.channel_name}")
         
+    # TODO: Implement this or delete it depending on feedback
+    def team_change(self, user: str, team: int) -> None:
+        """
+        Change a user's team in the chat channel.
+        """
+        self.teams[user] = team
+        socketio.emit('team_change', {
+            'user': user,
+            'team': team
+        }, broadcast=True)
+
+    def set_timer(self, timer: int) -> None:
+        """
+        Set the timer for the chat channel.
+        """
+        self.timer = timer
+
+    def set_match_timer(self, match_timer: int) -> None:
+        """
+        Set the start timer for the chat channel.
+        """
+        self.match_timer = match_timer
+
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__} channel_name='{self.channel_name}' num_messages={len(self.messages)}>"
 
@@ -163,14 +206,14 @@ class Chats():
         print(f"User logged in: {data['nickname']}")
         self.username = data['nickname']
     
-    def add_chat(self, channel_name: str, channel_type: int) -> None:
+    def add_chat(self, channel_name: str, channel_type: int, **kwargs) -> None:
         """
         Add a chat channel to the chat list.
         Called when a message comes in that isn't in the chat list or when a new chat is opened (query/add/etc)
         """
         if case_insensitive_get(self.chats, channel_name):
             return
-        self.chats[channel_name] = Chat(channel_name, channel_type)
+        self.chats[channel_name] = Chat(channel_name, channel_type, **kwargs)
         emit('bounce_tab_open', {
             'channel': channel_name
         }, broadcast=True)
@@ -261,17 +304,16 @@ def set_theme(data: Dict[str, Any]):
 # ---------------------
 @socketio.on('connect')
 def handle_connect():
-    # Broadcast chats
+    # For the sake of simplicity we won't have
+    # any ident procedures
     for chat in chats.chats.values():
         emit('bounce_tab_open', {
             'channel': chat.channel_name
         })
-    print('A Client connected')
 
 @socketio.on('nickname')
 def handle_nickname(data: Dict[str, Any]):
     chats.username = data['nickname']
-    print(f"User logged in: {data['nickname']}")
 
 @socketio.on('disconnect')
 def handle_disconnect():
@@ -284,18 +326,22 @@ def handle_tab_open(data: Dict[str, Any]):
 
 @socketio.on('send_msg')
 def handle_send_msg(data: Dict[str, Any]):
-    # Failsafe, if we have left every chat, to prevent the buttons from sending messages if it's additionally not a slash command
+    # Prevent sending attempting to send messages to a nonexistent chat unless
+    # It's a slash command because /q is a thing
     if (chats.current_chat is None or "") and (data["content"][0] != "/"):
         print("No current chat")
         return
+    # Slash commands
     if data["content"][0] == "/":
         command_parse(data["content"])
         return
+    if '!mp ' in data["content"][0:4].lower():
+        print("Match command detected")
     # Failsafe, this case occurs actually not infrequently, eg. the buttons
     if "channel" not in data:
         data["channel"] = chats.current_chat
     emit('bounce_send_msg', {
-        'content': data["content"].strip(),
+        'content': data["content"],
         'channel': data["channel"],
         'type': chats.get_chat(data["channel"]).type
     }, broadcast=True)
@@ -303,7 +349,7 @@ def handle_send_msg(data: Dict[str, Any]):
         'room_name': data["channel"],
         'time_recv': time.time(),
         'user_name': chats.username,
-        'content': data["content"].strip()
+        'content': data["content"]
     })
 
 @socketio.on('recv_msg')
@@ -319,7 +365,11 @@ def handle_tab_swap(data: Dict[str, Any]):
     chats.current_chat = data['channel']
     print(f"Current Chat: {chats.current_chat}")
     messages = chats.get_messages(data['channel'])
-    emit('tab_swap_response', {'messages': messages})
+    emit('tab_swap_response', {
+        'messages': messages,
+        'timer': chats.get_chat(data['channel']).timer,
+        'match_timer': chats.get_chat(data['channel']).match_timer
+    })
 
 @socketio.on('tab_close')
 def handle_tab_close(data: Dict[str, Any]):
@@ -336,15 +386,30 @@ def debug_run():
     # This is meant when the UI is being run standalone, so we need to make some fake chats
     # Adding chats is optional, since any non empty chat will automatically be added
     # However the fake mp is empty so we add it here
+    global debug
+    debug = True
+    socketio.run(app, debug=True, host='localhost', port=5000)
+
+@socketio.on('connect')
+def debug_connect():
+    if debug is False:
+        return
     chats.username = "HijiriS"
-    chats.add_chat("#testchat1", osu_irc.CHANNEL_TYPE_ROOM)
+    chats.add_chat("#testchat1", osu_irc.CHANNEL_TYPE_ROOM, timer=120, match_timer=5)
     chats.add_chat("testpm1", osu_irc.CHANNEL_TYPE_PM)
-    chats.add_chat("#mp_12345678", osu_irc.CHANNEL_TYPE_ROOM)
+    chats.add_chat("#mp_12345678", osu_irc.CHANNEL_TYPE_ROOM, timer=90, match_timer=10)
     chats.add_message({
         'room_name': "#testchat1",
         'time_recv': htime("12:00:01 PM"),
         'user_name': "HijiriS",
         'content': "Test Message Test Message Test Message Test Message Test Message Test Message Test Message Test Message Test Message Test Message Test Message Test Message",
+        'channel_type': osu_irc.CHANNEL_TYPE_ROOM
+    })
+    chats.add_message({
+        'room_name': "#testchat1",
+        'time_recv': htime("12:00:01 PM"),
+        'user_name': "HijiriS",
+        'content': "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         'channel_type': osu_irc.CHANNEL_TYPE_ROOM
     })
     chats.add_message({
@@ -361,7 +426,6 @@ def debug_run():
         'content': "Test PM",
         'channel_type': osu_irc.CHANNEL_TYPE_PM
     })
-    socketio.run(app, debug=True, host='localhost', port=5000)
 
 def prod_run():
     socketio.run(app, debug=False, host='localhost', port=5000)

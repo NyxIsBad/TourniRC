@@ -5,10 +5,9 @@ TODAY:
 - Timezone toggles
 
 Currently need to:
-- Send messages (irclib side)
 - Login screen (Do I even want to do this? Maybe it's better just to terminal log and ask user to set up the ini, since login/disconnect would require me to stop and start entire irc clients)
 - Disconnected screen/logout
-- In text highlights & links
+- Automatically create & query on mp make
 
 - Ping timeout
 - All the features in readme
@@ -18,9 +17,6 @@ Currently need to:
 - Tournament config + functionality (Need a screen to add these, incorporate into settings?)
   - Timezone toggling
   - Buttons to send
-    - Map start
-    - Map abort
-    - Timer
     - Map Commands by clicking a button (read from map pool info) 
   - Sound alerts
 - Test message functionality
@@ -35,13 +31,13 @@ Currently need to:
 - UTC/Local time swap button
 - Download chat logs feature (new UI panel?)
 - hotkeys.js <- not touched at all need to do all of this
-- Detect server down and await reconnect
 
 All Socket IO tags:
 - recv_msg: IRC to UI server, results in a bounce (added to Chats)
   - bounce_recv_msg: UI server to UI, added to current tab
 - send_msg: UI to UI server, results in a bounce
   - bounce_send_msg: UI server to IRC server
+- team_change: TODO: Implement - UI server to UI, change team color by tagging them.
 - tab_swap: UI to UI server, returns with messages
   - tab_swap_response: UI server to UI, has messages
 - tab_close: UI to UI server, deletes the chat.
