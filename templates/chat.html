@@ -444,8 +444,6 @@
                             next_tab.click();
                         } else {
                             console.log('No tabs left');
-                            // If there are no tabs left, emit no tabs
-                            socket.emit('tab_close', { channel: '' });
                         }
                         // After this tab swap will be handled by the above tab swap logic
                     }

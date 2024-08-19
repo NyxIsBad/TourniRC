@@ -17,6 +17,17 @@ TEAM_RED = 1
 TEAM_BLUE = 2
 TEAM_NONE = 0
 
+create_pattern = re.compile(r"Created the tournament match https:\/\/osu.ppy.sh\/mp\/([0-9]+)\s(.+)")
+slot_pattern = re.compile(r"Slot.*https:\/\/osu.ppy.sh\/u\/[0-9]+\s*([0-9A-z ]+)\s*\[.*Team (.+)\]")
+join_pattern = re.compile(r"([0-9A-z ]+) joined in slot [0-9]+ for team ([A-z]+).")
+change_pattern = re.compile(r"([0-9A-z ]+) changed to ([A-z]+)")
+
+team_map = {
+    'red': TEAM_RED,
+    'blue': TEAM_BLUE,
+    'none': TEAM_NONE
+}
+
 debug = False
 
 # ---------------------
@@ -143,14 +154,8 @@ class Chat():
         # TODO: implement this or delete it depending on feedback
         # 1 = red, 2 = blue, 0 = none
         self.teams: Dict[str, int] = {}
-        if 'timer' in kwargs:
-            self.timer = kwargs['timer']
-        else:
-            self.timer = 120 # default to 2 minutes
-        if 'match_timer' in kwargs:
-            self.match_timer = kwargs['match_timer']
-        else:
-            self.match_timer = 5 # default to 5 seconds
+        self.timer = kwargs['timer'] if 'timer' in kwargs else 120
+        self.match_timer = kwargs['match_timer'] if 'match_timer' in kwargs else 5
         
     def add_message(self, message: Dict[str, Any]) -> None:
         """
@@ -239,6 +244,8 @@ class Chats():
             socketio.emit('bounce_tab_close', {
                 'channel': channel_name
             })
+            if self.chat_count == 0:
+                self.current_chat = None
         else:
             raise ValueError(f"Channel {channel_name} not found.")
 
@@ -257,11 +264,10 @@ class Chats():
         if case_insensitive_get(self.chats, message['room_name']):
             message['room_name'] = case_insensitive_get(self.chats, message['room_name'])
         
-        if message['room_name'] in self.chats:
-            self.chats[message['room_name']].add_message(message)
-        else:
+        if message['room_name'] not in self.chats:
             self.add_chat(message['room_name'], message['channel_type'])
-            self.chats[message['room_name']].add_message(message)
+        self.chats[message['room_name']].add_message(message)
+
         if self.current_chat == message['room_name']:
             emit('bounce_recv_msg', {
                 'time': message["time_recv"]*1000, # convert to ms
@@ -269,6 +275,15 @@ class Chats():
                 'content': message["content"],
                 'team': self.chats[message['room_name']].teams.get(message["user_name"], TEAM_NONE)
             }, broadcast=True)
+        else:
+            # TODO: unread indicator
+            print(f"Unread message in {message['room_name']}")
+
+    def set_current_chat(self, channel_name: str) -> None:
+        """
+        Set the current chat channel.
+        """
+        self.current_chat = channel_name
     
     def get_messages(self, channel_name: str) -> List[List]:
         return self.chats[channel_name].messages
@@ -380,37 +395,34 @@ def handle_recv_msg(data: Dict[str, Any]):
         data["room_name"] = data["user_name"]
     chats.add_message(data)
     # TODO: implement blocking, sound alerts, any required regex here
-    create_pattern = r"Created the tournament match (https:\/\/osu.ppy.sh\/mp\/)([0-9]+)\s(.+)"
-    slot_pattern = r"Slot.*https:\/\/osu.ppy.sh\/u\/[0-9]+\s*([0-9A-z ]+)\s*\[.*Team (.+)\]"
-    join_pattern = r"([0-9A-z ]+) joined in slot [0-9]+ for team ([A-z]+)."
-    change_pattern = r"([0-9A-z ]+) changed to ([A-z]+)"
-    if data["user_name"].lower() == "BanchoBot".lower():
-        print("BanchoBot message")
-        create = re.match(create_pattern, data["content"])
-        slot = re.match(slot_pattern, data["content"])
-        join = re.match(join_pattern, data["content"])
-        change = re.match(change_pattern, data["content"])
+    
+    if data["user_name"].lower() == "banchobot":
+        create = create_pattern.match(data["content"])
         if create:
-            start_chat(f"#mp_{create.group(2)}", osu_irc.CHANNEL_TYPE_ROOM)
-        elif slot:
+            start_chat(f"#mp_{create.group(1)}", osu_irc.CHANNEL_TYPE_ROOM)
+            return
+        slot = slot_pattern.match(data["content"])
+        if slot:
             username = slot.group(1).strip().replace(" ", "_")
-            team = TEAM_RED if slot.group(2).strip().lower() == "red" else TEAM_BLUE
-            print(f"Slot: {username} {team}")
+            team = team_map.get(slot.group(2).strip().lower(), TEAM_NONE)
             chats.get_chat(data['room_name']).team_change(username, team)
-        elif join:
+            return
+        join = join_pattern.match(data["content"])
+        if join:
             username = join.group(1).strip().replace(" ", "_")
-            team = TEAM_RED if join.group(2).strip().lower() == "red" else TEAM_BLUE
-            print(f"Join: {username} {team}")
+            team = team_map.get(join.group(2).strip().lower(), TEAM_NONE)
             chats.get_chat(data['room_name']).team_change(username, team)
-        elif change:
+            return 
+        change = change_pattern.match(data["content"])
+        if change:
             username = change.group(1).strip().strip().replace(" ", "_")
-            team = TEAM_RED if change.group(2).lower() == "red" else TEAM_BLUE
-            print(f"Change: {username} {team}")
+            team = team_map.get(change.group(2).strip().lower(), TEAM_NONE)
             chats.get_chat(data['room_name']).team_change(username, team)
+            return
 
 @socketio.on('tab_swap')
 def handle_tab_swap(data: Dict[str, Any]):
-    chats.current_chat = data['channel']
+    chats.set_current_chat(data['channel'])
     print(f"Current Chat: {chats.current_chat}")
     messages = chats.get_messages(data['channel'])
     emit('tab_swap_response', {
@@ -422,10 +434,6 @@ def handle_tab_swap(data: Dict[str, Any]):
 
 @socketio.on('tab_close')
 def handle_tab_close(data: Dict[str, Any]):
-    if data['channel'] == '':
-        chats.current_chat = None
-        print(f"Current Chat: {chats.current_chat}")
-        return
     chats.remove_chat(data['channel'])
 
 @socketio.on('set_timer')
@@ -507,4 +515,5 @@ def prod_run():
 # Used for debug since we will call all methods from main.py normally
 # ---------------------
 if __name__ == "__main__":
+    print(f"https://localhost:5000")
     debug_run()

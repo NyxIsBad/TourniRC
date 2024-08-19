@@ -4,7 +4,6 @@ Currently need to:
 - Login screen (Do I even want to do this? Maybe it's better just to terminal log and ask user to set up the ini, since login/disconnect would require me to stop and start entire irc clients)
 - Disconnected screen/logout
 
-- Ping timeout
 - All the features in readme
   - Block list
   - Room history (new UI panel)
