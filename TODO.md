@@ -37,7 +37,7 @@ All Socket IO tags:
 - tab_swap: UI to UI server, returns with messages
   - tab_swap_response: UI server to UI, has messages
 - tab_close: UI to UI server, deletes the chat.
-  - bounce_tab_close: Close the connection by leaving the channel (TODO: implement in irclib (PART))
+  - bounce_tab_close: Close the connection by leaving the channel
 - tab_open: IRC to UI server, results in a bounce (added to Chats)
   - bounce_tab_open: Create the tab
 - cmd_req_ch: UI server to IRC server, asking for a joinChannel

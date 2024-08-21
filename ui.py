@@ -515,5 +515,5 @@ def prod_run():
 # Used for debug since we will call all methods from main.py normally
 # ---------------------
 if __name__ == "__main__":
-    print(f"https://localhost:5000")
+    print(f"http://localhost:5000")
     debug_run()
