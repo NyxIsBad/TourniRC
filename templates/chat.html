@@ -153,6 +153,24 @@
             </div>
             <div class="collapse collapse-arrow join-item border rounded border-base-content mb-1">
                 <input type="checkbox" name="accordion" />
+                <div class="collapse-title text-xl font-medium">Actions</div>
+                <div class="collapse-content">
+                    <!-- row 1 -->
+                    <div class="flex flex-row items-start w-[30vw]">
+                        <button id="timezone-btn" class="btn btn-circle btn-outline justify-self-end mr-2" title="Begin Match Timer">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="2em" height="2em" viewBox="0 0 24 24">
+                                <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+                                    <path d="M20.884 10.554a9 9 0 1 0-10.337 10.328M3.6 9h16.8M3.6 15h6.9" />
+                                    <path d="M11.5 3a17 17 0 0 0-1.502 14.954M12.5 3a17 17 0 0 1 2.52 7.603M14 18a4 4 0 1 0 8 0a4 4 0 1 0-8 0" />
+                                    <path d="M18 16.5V18l.5.5" />
+                                </g>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="collapse collapse-arrow join-item border rounded border-base-content mb-1">
+                <input type="checkbox" name="accordion" />
                 <div class="collapse-title text-xl font-medium">Maps</div>
                 <div class="collapse-content">
                     <p>hello</p>
@@ -177,10 +195,12 @@
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js" integrity="sha512-q/dWJ3kcmjBLU4Qc47E4A9kTB4m3wuTY7vkFJDTZKjTs8jhyGQnaUrxa0Ytd0ssMZhbNua9hE+E7Qv1j+DyZwA==" crossorigin="anonymous"></script>
 <script type="text/javascript" charset="utf-8">
+    // Variables set and used by the page
+    let useUTC = true; // default to UTC
     // EXT Functions
-    function formatTime(date, utc) {
+    function formatTime(date) {
         var hours, minutes, seconds;
-        if (utc) {
+        if (useUTC) {
             hours = date.getUTCHours();
             minutes = date.getUTCMinutes();
             seconds = date.getUTCSeconds();
@@ -193,6 +213,15 @@
         minutes = minutes.toString().padStart(2, '0');
         seconds = seconds.toString().padStart(2, '0');
         return `${hours}:${minutes}:${seconds}`;
+    }
+    function updateTimes() {
+        timestamps = document.querySelectorAll('.time')
+        timestamps.forEach((element) => {
+            let time = new Date(element.dataset.time);
+            let formatted_time = formatTime(time);
+            console.log(formatted_time);
+            element.textContent = formatted_time;
+        });
     }
     function urlify(text) {
         // Match URLs and [url text] patterns
@@ -236,6 +265,8 @@
     }
     function makeMessage(time, user, content, team) {
         const message_element = document.createElement('div');
+        const time_obj = new Date(time)
+        const time_str = formatTime(time_obj);
         message_element.classList.add('flex', 'flex-wrap', 'items-start', 'overflow-x-hidden');
         if (team === 1) {
             team_class = 'text-red-500';
@@ -245,21 +276,19 @@
             team_class = '';
         }
         message_element.innerHTML = `
-            <time class="mr-1 whitespace-nowrap">${time}</time>
+            <time class="time mr-1 whitespace-nowrap" data-time="${time_obj.toISOString()}">${time_str}</time>
             <a href="https://osu.ppy.sh/users/${user}", target="_blank" rel="noopener noreferrer" class="font-semibold mr-1 whitespace-nowrap ${team_class}">${user}:</a>
             <span class="flex-1 overflow-hidden text-ellipsis" style="white-space: pre-wrap;">${urlify(content)}</span>
         `;
         return message_element;
     }
-    function setMessages(message_list, useUTC) {
+    function setMessages(message_list) {
         const messages = document.getElementById('messages');
         clearMessages();
         // messages is a list of lists with each list having time/user/content
         message_list.forEach(message => {
             let [time, username, content] = message
-            let msg_time = new Date(time);
-            let formatted_time = formatTime(msg_time, useUTC);
-            let message_element = makeMessage(formatted_time, username, content);
+            let message_element = makeMessage(time, username, content);
 
             messages.appendChild(message_element);
         });
@@ -285,12 +314,11 @@
     }
     // Socket.io/communication
     document.addEventListener('DOMContentLoaded', () => {
-        // Variables set and used by the page
-        let useUTC = true; // default to UTC
-
+        // Messages Box
         const messages = document.getElementById('messages');
         const message_form = document.getElementById('message-form');
         const message_input = document.getElementById('message-input');
+        // Commands
         const match_timer = document.getElementById('match-timer-btn');
         const match_input = document.getElementById('timer-input');
         const start_timer = document.getElementById('start-timer-btn');
@@ -298,19 +326,19 @@
         const match_settings = document.getElementById('match-settings-btn');
         const cancel_timer = document.getElementById('cancel-timer-btn');
         const abort = document.getElementById('abort-btn');
+        // Actions
+        const timezone = document.getElementById('timezone-btn');
 
         // FROM server
         // Receive message from server
         socket.on('bounce_recv_msg', function(data) {
-            let msg_time = new Date(data.time)
-            let formatted_time = formatTime(msg_time, useUTC);
+            let time = data.time;
             let username = data.user;
             let content = data.content;
             let team = data.team
             // Create the message element
-            const message_element = makeMessage(formatted_time, username, content, team);
+            const message_element = makeMessage(time, username, content, team);
             messages.appendChild(message_element);
-            console.log("Message: " + formatted_time + " " + username + ": " + content);
         });
         socket.on('team_change', function(data) {
             const selected_tab = document.querySelector('input[name="tab"]:checked');
@@ -403,7 +431,7 @@
             if (e.target.classList.contains('tab')) {
                 const channel = e.target.getAttribute('aria-label');
                 emitTabSwap(channel).then((data) => {
-                    setMessages(data.messages, useUTC);
+                    setMessages(data.messages);
                     if (data.timer) {
                         // set timer
                         match_input.value = data.timer;
@@ -465,6 +493,12 @@
         });
         abort.addEventListener('click', (e) => {
             socket.emit('send_msg', { content: '!mp abort' });
+        });
+        timezone.addEventListener('click', (e) => {
+            useUTC = !useUTC;
+            console.log('Timezone set to: ' + (useUTC ? 'UTC' : 'Local'));
+            // Refresh message times to reflect new timezone
+            updateTimes(useUTC);
         });
     });
 </script>
