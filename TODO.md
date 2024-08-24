@@ -20,7 +20,6 @@ Currently need to:
   - Should be part of dc/rc logic since dc can clear chat
 - Go through HTML and use classes (h1, span, etc) correctly
 - Notification toasts
-- Download chat logs feature (Hotbar bottom of actions)
 - Show timestamp toggle
 - Pinned msg (Hotbar on top)?
 - hotkeys.js <- not touched at all need to do all of this
@@ -40,6 +39,8 @@ All Socket IO tags:
   - bounce_tab_open: Create the tab
 - cmd_req_ch: UI server to IRC server, asking for a joinChannel
 - cmd_part: UI server to UI, deletes the chat by having the UI click the close button on the relevant chat if it exists.
+- cmd_savelog: UI to UI server, asks for savelog info for a channel (Unused**)
+  - cmd_savelog_response: UI server to UI, has messages
 - set_timer: UI to UI server, sets timer value of current chat
   - set_timer_input: UI server to UI, sets timer input value
 - set_match_timer: UI to UI server, sets mt value of current chat

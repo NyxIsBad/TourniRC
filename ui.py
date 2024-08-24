@@ -89,7 +89,8 @@ def command_parse(command: str) -> None:
         "/leave": "/part",
         "/close": "/part",
         "/t": "/timer",
-        "/mt": "/matchtimer"
+        "/mt": "/matchtimer",
+        "/s": "/savelog"
     }
 
     command = aliases.get(command, command)
@@ -97,45 +98,57 @@ def command_parse(command: str) -> None:
     if command == "/query":
         if len(args) == 0:
             print("Usage: /query <channel>")
-            return
-        start_chat(args[0], osu_irc.CHANNEL_TYPE_ROOM if args[0].startswith("#") else osu_irc.CHANNEL_TYPE_PM)
+        else:
+            start_chat(args[0], osu_irc.CHANNEL_TYPE_ROOM if args[0].startswith("#") else osu_irc.CHANNEL_TYPE_PM)
     elif command == "/part":
-        if len(args) == 0:
-            close_chat(chats.current_chat)
-            return
-        close_chat(args[0])
+        close_chat(chats.current_chat) if len(args) == 0 else close_chat(args[0])
     elif command == "/clear":
         chats.get_current_chat.clear_messages()
-        # TODO: might have to add teams logic here
         emit('cmd_clear', {}, broadcast=True)
     elif command == "/timer":
         if len(args) == 0:
             handle_send_msg({
                 "content": f"!mp timer {chats.get_current_chat.timer}"
             })
-            return
-        handle_send_msg({
-            "content": f"!mp timer {args[0]}"
-        })
-        chats.get_current_chat.set_timer(args[0])
-        emit('set_timer_input', {
-            'timer': args[0]
-        })
-        # TODO: maybe handle timer logic here
+        else:
+            handle_send_msg({
+                "content": f"!mp timer {args[0]}"
+            })
+            chats.get_current_chat.set_timer(args[0])
+            emit('set_timer_input', {
+                'timer': args[0]
+            })
     elif command == "/matchtimer":
         if len(args) == 0:
             handle_send_msg({
                 "content": f"!mp start {chats.get_current_chat.match_timer}"
             })
-            return
-        chats.get_current_chat.set_match_timer(args[0])
-        emit('set_match_timer_input', {
-            'timer': args[0]
-        })
-        # TODO: match timer logic here
-        handle_send_msg({
-            "content": f"!mp start {args[0]}"
-        })
+        else:
+            chats.get_current_chat.set_match_timer(args[0])
+            emit('set_match_timer_input', {
+                'timer': args[0]
+            })
+            # TODO: match timer logic here
+            handle_send_msg({
+                "content": f"!mp start {args[0]}"
+            })
+    elif command == "/savelog":
+        if len(args) == 0:
+            emit('cmd_savelog_response', {
+                'messages': chats.get_messages(chats.get_current_chat.channel_name),
+                'channel': chats.get_current_chat.channel_name
+            })
+        else:
+            ch_insensitive = case_insensitive_get(chats.chats, args[0])
+            if ch_insensitive:
+                args[0] = ch_insensitive
+            else:
+                print(f"Channel {args[0]} not found.")
+                return
+            emit('cmd_savelog_response', {
+                'messages': chats.get_messages(args[0]),
+                'channel': args[0]
+            })
     else:
         print(f"Command {command} not found.")
 

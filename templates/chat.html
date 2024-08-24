@@ -22,6 +22,16 @@
             color: var(--fallback-pc, oklch(var(--pc) / var(--tw-text-opacity)));
             border-radius: var(--rounded-btn, 0.5rem);
         }
+        .collapse-title {
+            padding: .5rem 0 .5rem 1rem;
+            min-height: 2.75rem;
+        }
+        .collapse-title, :where(.collapse > input[type="checkbox"]), :where(.collapse > input[type="radio"]) {
+            min-height: 2.75rem;
+        }
+        .collapse-arrow > .collapse-title:after {
+            top: 1.4rem;
+        }
     </style>
     <!-- Main chat area -->
     <!-- outer wrapper which will contain chat & player display -->
@@ -51,7 +61,7 @@
         <div class="max-w-none my-4 bg-base-100 p-4 ml-4 mr-4 rounded shadow-md h-[80vh] w-[35vw] overflow-y-auto">
             <div class="collapse collapse-arrow join-item border rounded border-base-content mb-1">
                 <input type="checkbox" name="accordion" checked="checked" />
-                <div class="collapse-title text-xl font-medium">Channel Info</div>
+                <div class="collapse-title text-lg font-medium">Channel Info</div>
                 <div class="collapse-content">
                     <!-- row 1 -->
                     <div class="flex flex-row items-start w-[30vw]">
@@ -103,7 +113,7 @@
             </div>
             <div class="collapse collapse-arrow join-item border rounded border-base-content mb-1">
                 <input type="checkbox" name="accordion" />
-                <div class="collapse-title text-xl font-medium">Commands</div>
+                <div class="collapse-title text-lg font-medium">Commands</div>
                 <div class="collapse-content">
                     <!-- row 1 -->
                     <div class="flex flex-row items-start w-[30vw] mb-2">
@@ -153,7 +163,7 @@
             </div>
             <div class="collapse collapse-arrow join-item border rounded border-base-content mb-1">
                 <input type="checkbox" name="accordion" />
-                <div class="collapse-title text-xl font-medium">Actions</div>
+                <div class="collapse-title text-lg font-medium">Actions</div>
                 <div class="collapse-content">
                     <!-- row 1 -->
                     <div class="flex flex-row items-start w-[30vw]">
@@ -214,21 +224,21 @@
             </div>
             <div class="collapse collapse-arrow join-item border rounded border-base-content mb-1">
                 <input type="checkbox" name="accordion" />
-                <div class="collapse-title text-xl font-medium">Maps</div>
+                <div class="collapse-title text-lg font-medium">Maps</div>
                 <div class="collapse-content">
                     <p>hello</p>
                 </div>
             </div>
             <div class="collapse collapse-arrow join-item border rounded border-base-content mb-1">
                 <input type="checkbox" name="accordion" />
-                <div class="collapse-title text-xl font-medium">Players</div>
+                <div class="collapse-title text-lg font-medium">Players</div>
                 <div class="collapse-content">
                     <p>hello</p>
                 </div>
             </div>
             <div class="collapse collapse-arrow join-item border rounded border-base-content mb-1">
                 <input type="checkbox" name="accordion" />
-                <div class="collapse-title text-xl font-medium">Mods</div>
+                <div class="collapse-title text-lg font-medium">Mods</div>
                 <div class="collapse-content">
                     <p>hello</p>
                 </div>
@@ -257,6 +267,19 @@
         minutes = minutes.toString().padStart(2, '0');
         seconds = seconds.toString().padStart(2, '0');
         return `${hours}:${minutes}:${seconds}`;
+    }
+    function formatTimeFile(date) {
+        var year, month, day;
+        if (useUTC) {
+            year = date.getUTCFullYear();
+            month = date.getUTCMonth() + 1;
+            day = date.getUTCDate();
+        } else {
+            year = date.getFullYear();
+            month = date.getMonth() + 1;
+            day = date.getDate();
+        }
+        return `${year}-${month}-${day}_${formatTime(date)}`;
     }
     function updateTimes() {
         timestamps = document.querySelectorAll('.time')
@@ -294,10 +317,10 @@
         });
         return matches;
     }
-    function emitTabSwap(channel) {
+    function emitAndResponse(tag, channel) {
         return new Promise((resolve, reject) => {
-            socket.emit('tab_swap', { channel: channel });
-            socket.once('tab_swap_response', function(data) {
+            socket.emit(tag, { channel: channel });
+            socket.once(tag+'_response', function(data) {
                 resolve(data);
             });
             // let's just pretend reject doesn't exist - quick and dirty, probably horrible practice, but it works?
@@ -379,6 +402,7 @@
         const query_input = document.getElementById('query-input');
         const query_submit = document.getElementById('query-submit-btn');
         const scroll = document.getElementById('scroll-btn')
+        const savelog = document.getElementById('download-btn');
 
         // FROM server
         // Receive message from server
@@ -446,6 +470,27 @@
         socket.on('set_match_timer_input', function(data) {
             start_input.value = data.timer;
         });
+        socket.on('cmd_savelog_response', function(data) {
+            let message_list = data.messages;
+            let log = `---- Chat log of ${data.channel} generated by TourniRC ----\n`;
+            log += `---- Log spans from ${formatTime(new Date(message_list[0][0]))} to ${formatTime(new Date(message_list[message_list.length-1][0]))} in ${useUTC ? 'UTC Time' : 'Local Time'} ----\n`;
+            log += `---- Log contains ${message_list.length} messages ----\n`;
+            log += `---- Begin Log ----\n`;
+            message_list.forEach(message => {
+                let [time, username, content] = message 
+                let line = `${formatTime(new Date(time))} ${username}: ${content}`;
+                log += line + '\n';
+            })
+            log += '---- End Log ----';
+            const blob = new Blob([log], { type: 'text/plain' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `TourniRC_${formatTimeFile(new Date(message_list[0][0]))}_${data.channel}.txt`;
+
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
         // TO server
         // Send message to server
         message_form.addEventListener('submit', (e) => {
@@ -484,7 +529,7 @@
         document.getElementById('tabs').addEventListener('click', (e) => {
             if (e.target.classList.contains('tab')) {
                 const channel = e.target.getAttribute('aria-label');
-                emitTabSwap(channel).then((data) => {
+                emitAndResponse('tab_swap', channel).then((data) => {
                     setMessages(data.messages);
                     if (data.timer) {
                         // set timer
@@ -575,6 +620,9 @@
             if (keepScroll) {
                 scrollToBottom();
             }
+        });
+        savelog.addEventListener('click', (e) => {
+            socket.emit('send_msg', { content: '/savelog' });
         });
     });
 </script>
