@@ -19,7 +19,7 @@ Currently need to:
 - Automatically send "tab_swap" of current under the following condition: client stays open, and reconnects to server while server down. 
   - Should be part of dc/rc logic since dc can clear chat
 - Go through HTML and use classes (h1, span, etc) correctly
-- Notification toasts
+- Unread flags that change whether or not the unread notif shows up + whether or not special highlights show up on the tab.
 - Show timestamp toggle
 - Pinned msg (Hotbar on top)?
 - hotkeys.js <- not touched at all need to do all of this
@@ -37,6 +37,11 @@ All Socket IO tags:
   - bounce_tab_close: Close the connection by leaving the channel
 - tab_open: IRC to UI server, results in a bounce (added to Chats)
   - bounce_tab_open: Create the tab
+- notif: UI server to UI, creates a temporary toast.
+  - Info: Unread Notifications, chat open, 
+  - Warning: Incorrect command syntax
+  - Error: Incorrect key instances
+  - Success: 
 - cmd_req_ch: UI server to IRC server, asking for a joinChannel
 - cmd_part: UI server to UI, deletes the chat by having the UI click the close button on the relevant chat if it exists.
 - cmd_savelog: UI to UI server, asks for savelog info for a channel (Unused**)

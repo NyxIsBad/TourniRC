@@ -17,6 +17,12 @@ TEAM_RED = 1
 TEAM_BLUE = 2
 TEAM_NONE = 0
 
+NOTIF_TYPE_INFO = 'info'
+NOTIF_TYPE_WARNING = 'warning'
+NOTIF_TYPE_ERROR = 'error'
+NOTIF_TYPE_SUCCESS = 'success'
+NOTIF_TYPE_DEFAULT = ''
+
 create_pattern = re.compile(r"Created the tournament match https:\/\/osu.ppy.sh\/mp\/([0-9]+)\s(.+)")
 slot_pattern = re.compile(r"Slot.*https:\/\/osu.ppy.sh\/u\/[0-9]+\s*([0-9A-z ]+)\s*\[.*Team (.+)\]")
 join_pattern = re.compile(r"([0-9A-z ]+) joined in slot [0-9]+ for team ([A-z]+).")
@@ -54,10 +60,21 @@ def case_insensitive_get(d: Dict[str, Any], key: str) -> Any:
             return k
     return None
 
+def create_notif(content: str, duration: int = 5000, notif_type: str = NOTIF_TYPE_DEFAULT) -> None:
+    """
+    Create a notification with content and duration in ms.
+    """
+    emit('notif', {
+        "content": content,
+        "duration": duration,
+        "type": notif_type
+    })
+
 def start_chat(channel_name: str, channel_type: int) -> None:
     """
     Start a chat with a channel name and type from the UI server's side.
     """
+    create_notif(f"Opening chat {channel_name}...", 500, notif_type=NOTIF_TYPE_INFO)
     emit('cmd_req_ch', {
         'channel': channel_name,
         'type': channel_type
@@ -67,6 +84,7 @@ def close_chat(channel_name: str) -> None:
     """
     Close a chat with a channel name from the UI server's side.
     """
+    create_notif(f"Closing chat {channel_name}...", 500, notif_type=NOTIF_TYPE_INFO)
     emit('cmd_part', {
         'channel': channel_name
     }, broadcast=True)
@@ -97,7 +115,7 @@ def command_parse(command: str) -> None:
 
     if command == "/query":
         if len(args) == 0:
-            print("Usage: /query <channel>")
+            create_notif("Usage: /query <channel>", notif_type=NOTIF_TYPE_WARNING)
         else:
             start_chat(args[0], osu_irc.CHANNEL_TYPE_ROOM if args[0].startswith("#") else osu_irc.CHANNEL_TYPE_PM)
     elif command == "/part":
@@ -143,14 +161,14 @@ def command_parse(command: str) -> None:
             if ch_insensitive:
                 args[0] = ch_insensitive
             else:
-                print(f"Channel {args[0]} not found.")
+                create_notif(f"Channel {args[0]} not found.", notif_type=NOTIF_TYPE_ERROR)
                 return
             emit('cmd_savelog_response', {
                 'messages': chats.get_messages(args[0]),
                 'channel': args[0]
             })
     else:
-        print(f"Command {command} not found.")
+        create_notif(f"Command {command} not found.", notif_type=NOTIF_TYPE_WARNING)
 
 # ---------------------
 # Chat Classes
@@ -178,6 +196,7 @@ class Chat():
         if message['room_name'] == self.channel_name:
             self.messages.append([message['time_recv']*1000, message['user_name'], message['content']])
         else:
+            create_notif(f"Something has gone terribly wrong, code MSG-001", notif_type=NOTIF_TYPE_ERROR)
             raise ValueError(f"Message not in channel {self.channel_name}")
         
     # TODO: Implement this or delete it depending on feedback
@@ -260,6 +279,7 @@ class Chats():
             if self.chat_count == 0:
                 self.current_chat = None
         else:
+            create_notif(f"Something has gone terribly wrong, code CHN-001", notif_type=NOTIF_TYPE_ERROR)
             raise ValueError(f"Channel {channel_name} not found.")
 
     def get_chat(self, channel_name: str) -> Chat:
@@ -290,7 +310,8 @@ class Chats():
             }, broadcast=True)
         else:
             # TODO: unread indicator
-            print(f"Unread message in {message['room_name']}")
+            # This should be conditional and only sent once based on the unread flag.
+            create_notif(f"New message in {message['room_name']}", notif_type=NOTIF_TYPE_INFO)
 
     def set_current_chat(self, channel_name: str) -> None:
         """
@@ -371,7 +392,6 @@ def handle_disconnect():
 
 @socketio.on('tab_open')
 def handle_tab_open(data: Dict[str, Any]):
-    print(f"Channel join: {data['channel']}")
     chats.add_chat(data['channel'], data['type'])
 
 @socketio.on('send_msg')
@@ -379,7 +399,6 @@ def handle_send_msg(data: Dict[str, Any]):
     # Prevent sending attempting to send messages to a nonexistent chat unless
     # It's a slash command because /q is a thing
     if (chats.current_chat is None or "") and (data["content"][0] != "/"):
-        print("No current chat")
         return
     # Slash commands
     if data["content"][0] == "/":
@@ -436,7 +455,6 @@ def handle_recv_msg(data: Dict[str, Any]):
 @socketio.on('tab_swap')
 def handle_tab_swap(data: Dict[str, Any]):
     chats.set_current_chat(data['channel'])
-    print(f"Current Chat: {chats.current_chat}")
     messages = chats.get_messages(data['channel'])
     emit('tab_swap_response', {
         'messages': messages,
