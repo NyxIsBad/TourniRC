@@ -354,7 +354,18 @@ chats = Chats()
 @app.route('/')
 def chat():
     cur_theme = config.get_theme()
+    # TODO: conditionall reroute to login if not logged in
     return render_template('chat.html', cur_theme=cur_theme, themes=THEMES)
+
+@app.route('/login')
+def login():
+    cur_theme = config.get_theme()
+    return render_template('login.html', cur_theme=cur_theme, themes=THEMES)
+
+@app.route('/settings')
+def settings():
+    cur_theme = config.get_theme()
+    return render_template('settings.html', cur_theme=cur_theme, themes=THEMES)
 
 # ---------------------
 # Layout SIO Routes
