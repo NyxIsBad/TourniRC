@@ -203,9 +203,9 @@
                                 </div>
                             </div>
                         </dialog>
-                        <button id="time-toggle-btn" class="btn btn-circle btn-outline justify-self-end mr-2" title="Toggle Timestamps">
+                        <button id="time-toggle-btn" class="btn btn-circle btn-outline justify-self-end text-error mr-2" title="Hide Timestamps">
                             <!-- TODO: Toggle between these two -->
-                            <svg xmlns="http://www.w3.org/2000/svg" width="2em" height="2em" viewBox="0 0 24 24">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="2em" class="hidden" height="2em" viewBox="0 0 24 24">
                                 <path fill="currentColor" d="m9 22l-1.35-4.55q-1.2-.95-1.925-2.375T5 12t.725-3.075T7.65 6.55L9 2h6l1.35 4.55q1.2.95 1.925 2.375T19 12t-.725 3.075t-1.925 2.375L15 22zm3-5q2.075 0 3.538-1.463T17 12t-1.463-3.537T12 7T8.463 8.463T7 12t1.463 3.538T12 17" />
                             </svg>
                             <svg xmlns="http://www.w3.org/2000/svg" width="2em" height="2em" viewBox="0 0 24 24">
@@ -257,6 +257,7 @@
     // Variables set and used by the page
     let useUTC = true; // default to UTC
     let keepScroll = true; // default to keeping scroll
+    let keepTimestamps = true; // default timestamps on
     // EXT Functions
     function formatTime(date) {
         var hours, minutes, seconds;
@@ -357,6 +358,9 @@
             <a href="https://osu.ppy.sh/users/${user}", target="_blank" rel="noopener noreferrer" class="font-semibold mr-1 whitespace-nowrap ${team_class}">${user}:</a>
             <span class="flex-1 overflow-hidden text-ellipsis" style="white-space: pre-wrap;">${urlify(content)}</span>
         `;
+        if (!keepTimestamps) {
+            message_element.querySelector('.time').classList.add('hidden');
+        }
         return message_element;
     }
     function makeNotification(content, duration, type) {
@@ -460,6 +464,7 @@
         const timezone = document.getElementById('timezone-btn');
         const query_input = document.getElementById('query-input');
         const query_submit = document.getElementById('query-submit-btn');
+        const time_toggle = document.getElementById('time-toggle-btn');
         const scroll = document.getElementById('scroll-btn')
         const savelog = document.getElementById('download-btn');
 
@@ -669,6 +674,19 @@
             timezone.classList.toggle('text-error');
             timezone.title = useUTC ? 'Use Local Time' : 'Use UTC Time';
             updateTimes(useUTC);
+        });
+        time_toggle.addEventListener('click',(e) => {
+            const icons = time_toggle.querySelectorAll('svg');
+            icons.forEach((icon) => {
+                icon.classList.toggle('hidden');
+            });
+            const timestamps = document.querySelectorAll('.time');
+            timestamps.forEach((element) => {
+                element.classList.toggle('hidden');
+            });
+            keepTimestamps = !keepTimestamps;
+            time_toggle.classList.toggle('text-error');
+            time_toggle.title = time_toggle.classList.contains('text-error') ? 'Hide Timestamps' : 'Show Timestamps';
         });
         query_submit.addEventListener('click', (e) => {
             e.preventDefault();
