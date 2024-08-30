@@ -32,5 +32,4 @@ TourniRC is an indev iRC client aiming to be a tournament client for osu built o
 
 - Git clone the repo
 - `pip install -r requirements.txt`
-- `npm run build` (Required anytime you make changes to the templates/js)
-- Run main.py
+- `npm run main`

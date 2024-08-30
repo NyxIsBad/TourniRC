@@ -3,6 +3,8 @@ S:/Code/TourniRC/.venv/Scripts/activate
 Currently need to:
 - Login screen (Do I even want to do this? Maybe it's better just to terminal log and ask user to set up the ini, since login/disconnect would require me to stop and start entire irc clients)
 - Disconnected screen/logout
+- Completely refactor the login situation with osu_irc 
+- Use uv instead of normal python cause it's just way better lol
 
 - All the features in readme
   - Block list
@@ -20,7 +22,6 @@ Currently need to:
   - Should be part of dc/rc logic since dc can clear chat
 - Go through HTML and use classes (h1, span, etc) correctly
 - Unread flags that change whether or not the unread notif shows up + whether or not special highlights show up on the tab.
-- Show timestamp toggle
 - Pinned msg (Hotbar on top)?
 - hotkeys.js <- not touched at all need to do all of this
 - Highlight tab when unread messages come in
