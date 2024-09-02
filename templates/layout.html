@@ -114,9 +114,9 @@
             // For the daisy UI compiler
             // alert-info alert-success alert-warning alert-error
             alert_element.innerHTML = `
-                <div class="flex justify-between w-56">
-                    <span class="self-start mr-2">${content}</span>
-                    <button class="self-end toast-close mr-1" aria-label="Close">
+                <div class="flex flex-wrap items-start overflow-x-hidden justify-between w-56">
+                    <span class="self-start overflow-hidden text-ellipsis flex-1 whitespace-pre-wrap mr-2">${content}</span>
+                    <button class="whitespace-nowrap self-center toast-close mr-1" aria-label="Close">
                         &times;
                     </button>
                 </div>

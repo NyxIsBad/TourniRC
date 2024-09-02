@@ -3,7 +3,7 @@
 {% block content %}
 <div class="max-w-[95vw] w-full h-[80vh] flex bg-base-100 p-4 rounded shadow-md mx-auto my-4">
     <!-- Login Panel -->
-    <div class="grow shrink-0 w-0">
+    <div class="flex flex-col grow shrink-0 w-0">
         <h1 class="text-4xl mb-8 font-bold">Login</h1>
         <form id="username-form" class="mb-4">
             <label class="input input-bordered flex items-center gap-2">
@@ -33,6 +33,8 @@
                 <input type="password" class="grow" placeholder="IRC Token" />
             </label>
         </form>
+        <!-- Login Button, aligned right -->
+        <button id="login-button" class="btn justify-self-end btn-primary">Login</button>
     </div>
     <!-- Divider -->
     <div class="divider divider-horizontal"></div>
@@ -44,4 +46,28 @@
         </span>
     </div>
 </div>
+<script>
+    // Login
+    document.getElementById('login-button').addEventListener('click', async () => {
+        const username = document.getElementById('username-form').querySelector('input').value;
+        const password = document.getElementById('password-form').querySelector('input').value;
+        if (username && password) {
+            console.log(username, password);
+        }
+        else {
+            makeNotification("Please fill in both username and password", "5000", "error");
+        }
+    });
+    // Enter key
+    document.addEventListener('keydown', (e) => {
+        // If we are in the username or password input
+        if (document.activeElement.tagName === 'INPUT') {
+            // If the key is enter
+            if (e.key === 'Enter') {
+                // Click the login button
+                document.getElementById('login-button').click();
+            }
+        }
+    });
+</script>
 {% endblock %}

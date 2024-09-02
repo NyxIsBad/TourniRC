@@ -353,7 +353,7 @@
         message_element.innerHTML = `
             <time class="time mr-1 whitespace-nowrap" data-time="${time_obj.toISOString()}">${time_str}</time>
             <a href="https://osu.ppy.sh/users/${user}", target="_blank" rel="noopener noreferrer" class="font-semibold mr-1 whitespace-nowrap ${team_class}">${user}:</a>
-            <span class="flex-1 overflow-hidden text-ellipsis" style="white-space: pre-wrap;">${urlify(content)}</span>
+            <span class="flex-1 overflow-hidden text-ellipsis whitespace-pre-wrap	">${urlify(content)}</span>
         `;
         if (!keepTimestamps) {
             message_element.querySelector('.time').classList.add('hidden');
