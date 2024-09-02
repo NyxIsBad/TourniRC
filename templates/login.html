@@ -1,7 +1,7 @@
 {% extends "layout.html" %}
 {% block title %}Login{% endblock %}
 {% block content %}
-<div class="max-w-[95vw] w-full h-[80vh] flex bg-base-100 p-4 rounded shadow-md mx-auto my-4">
+<div class="max-w-[60vw] w-full h-[50vh] flex bg-base-100 p-4 rounded shadow-md mx-auto mt-[10vh]">
     <!-- Login Panel -->
     <div class="flex flex-col grow shrink-0 w-0">
         <h1 class="text-4xl mb-8 font-bold">Login</h1>
@@ -49,10 +49,13 @@
 <script>
     // Login
     document.getElementById('login-button').addEventListener('click', async () => {
-        const username = document.getElementById('username-form').querySelector('input').value;
-        const password = document.getElementById('password-form').querySelector('input').value;
+        const username = document.getElementById('username-form').querySelector('input')
+        const password = document.getElementById('password-form').querySelector('input')
         if (username && password) {
-            console.log(username, password);
+            console.log(username.value, password.value);
+            // Clear Inputs
+            username.value = '';
+            password.value = '';
         }
         else {
             makeNotification("Please fill in both username and password", "5000", "error");
@@ -64,6 +67,7 @@
         if (document.activeElement.tagName === 'INPUT') {
             // If the key is enter
             if (e.key === 'Enter') {
+                e.preventDefault();
                 // Click the login button
                 document.getElementById('login-button').click();
             }
