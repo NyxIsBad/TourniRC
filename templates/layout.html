@@ -100,8 +100,65 @@
             </aside>
         </div>
     </footer>
+    
+    <!-- Toasts/Notifications -->
+    <div class="toast" id="toasts">
+    </div>
     <!-- JavaScript to handle theme switching and persistence -->
     <script>
+        function makeNotification(content, duration, type) {
+            const alert_element = document.createElement("div");
+            const toasts = document.getElementById('toasts');
+            // Can be info, success, warning, and error, blank for default
+            alert_element.className = `alert alert-${type} flex flex-col opacity-0 transition-opacity duration-500`;
+            // For the daisy UI compiler
+            // alert-info alert-success alert-warning alert-error
+            alert_element.innerHTML = `
+                <div class="flex justify-between w-56">
+                    <span class="self-start mr-2">${content}</span>
+                    <button class="self-end toast-close mr-1" aria-label="Close">
+                        &times;
+                    </button>
+                </div>
+                <progress class="progress w-56 mt-2" value="0" max="100"></progress>
+            `;
+            toasts.appendChild(alert_element);
+
+            // Close button
+            const close_button = alert_element.querySelector('.toast-close');
+            close_button.addEventListener('click', () => {
+                alert_element.classList.remove('opacity-100');
+                alert_element.classList.add('opacity-0');
+                setTimeout(() => {
+                    alert_element.remove();
+                }, 500);
+            });
+            
+            setTimeout(() => {
+                alert_element.classList.remove('opacity-0');
+                alert_element.classList.add('opacity-100');
+            }, 10);
+
+            const progress_bar = alert_element.querySelector('.progress');
+            const interval = 10; // ms between each update
+            const increment = 100 / (duration / interval);
+            let progress = 0;
+            const timer = setInterval(() => {
+                progress += increment;
+                progress_bar.value = progress;
+                if (progress >= 100) {
+                    clearInterval(timer);
+                }
+            }, interval);
+
+            setTimeout(() => {
+                alert_element.classList.remove('opacity-100');
+                alert_element.classList.add('opacity-0');
+                setTimeout(() => {
+                    alert_element.remove();
+                }, 500);
+            }, duration);
+        }
         document.addEventListener('DOMContentLoaded', () => {
             // Set theme from cookie
             const themeCookie = document.cookie.split('; ').find(row => row.startsWith('theme='));
@@ -126,6 +183,14 @@
                     socket.emit('theme', {'theme': theme});
                 });
             });
+            
+        });
+        socket.on('notif', function(data) {
+            makeNotification(
+                data.content,
+                data.duration ? data.duration : 5000,
+                data.type ? data.type : ''
+            )
         });
     </script>
 </body>
