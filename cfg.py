@@ -1,5 +1,6 @@
 from configparser import ConfigParser
 import os
+from typing import *
 
 THEMES = [
     "light", "dark", "cupcake", "bumblebee", "emerald",
@@ -101,3 +102,38 @@ class uiConfig():
         return f'Theme: {self.theme}'
     
 # we can have tourney config files here later
+
+class Tournaments():
+    def __init__(self):
+        self.tournaments:Dict[str, tourneyConfig] = {}
+        self.dir = f'cfg/tournaments/'
+        self.config = ConfigParser()
+
+        if not os.path.exists(self.dir):
+            os.makedirs(self.dir)
+            # TODO: implement
+            self.create_config()
+        else:
+            # scan directory for config files
+            self.load_config()
+    
+    def create_config(self):
+        pass
+
+    def load_config(self):
+        # scan directory for .ini files
+        for file in os.listdir(self.dir):
+            if file.endswith('.ini'):
+                # create a new tourneyConfig object and add it to the dict
+                tourney = tourneyConfig()
+                tourney.name = file.split('.')[0]
+                self.tournaments[tourney.name] = tourney
+
+    def get_tourney(self, name:str) -> "tourneyConfig":
+        return self.tournaments[name]
+        
+
+class tourneyConfig():
+    def __init__(self):
+        self.name = ""
+        self.configdir = f'cfg/tournaments/{self.name}.ini'
