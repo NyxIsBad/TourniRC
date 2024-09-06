@@ -23,11 +23,6 @@ NOTIF_TYPE_ERROR = 'error'
 NOTIF_TYPE_SUCCESS = 'success'
 NOTIF_TYPE_DEFAULT = ''
 
-create_pattern = re.compile(r"Created the tournament match https:\/\/osu.ppy.sh\/mp\/([0-9]+)\s(.+)")
-slot_pattern = re.compile(r"Slot.*https:\/\/osu.ppy.sh\/u\/[0-9]+\s*([0-9A-z ]+)\s*\[.*Team (.+)\]")
-join_pattern = re.compile(r"([0-9A-z ]+) joined in slot [0-9]+ for team ([A-z]+).")
-change_pattern = re.compile(r"([0-9A-z ]+) changed to ([A-z]+)")
-
 team_map = {
     'red': TEAM_RED,
     'blue': TEAM_BLUE,
@@ -377,6 +372,7 @@ def set_theme(data: Dict[str, Any]):
     if theme in THEMES:
         config.set_theme(theme)
     else:
+        # I'd be shocked if this ever happens; it means the user edited some code and didn't know what they were doing
         raise ValueError(f"Theme {theme} not found.")
 
 # ---------------------
@@ -440,23 +436,23 @@ def handle_recv_msg(data: Dict[str, Any]):
     # TODO: implement blocking, sound alerts, any required regex here
     
     if data["user_name"].lower() == "banchobot":
-        create = create_pattern.match(data["content"])
+        create = osu_irc.create_pattern.match(data["content"])
         if create:
             start_chat(f"#mp_{create.group(1)}", osu_irc.CHANNEL_TYPE_ROOM)
             return
-        slot = slot_pattern.match(data["content"])
+        slot = osu_irc.slot_pattern.match(data["content"])
         if slot:
             username = slot.group(1).strip().replace(" ", "_")
             team = team_map.get(slot.group(2).strip().lower(), TEAM_NONE)
             chats.get_chat(data['room_name']).team_change(username, team)
             return
-        join = join_pattern.match(data["content"])
+        join = osu_irc.join_pattern.match(data["content"])
         if join:
             username = join.group(1).strip().replace(" ", "_")
             team = team_map.get(join.group(2).strip().lower(), TEAM_NONE)
             chats.get_chat(data['room_name']).team_change(username, team)
             return 
-        change = change_pattern.match(data["content"])
+        change = osu_irc.change_pattern.match(data["content"])
         if change:
             username = change.group(1).strip().strip().replace(" ", "_")
             team = team_map.get(change.group(2).strip().lower(), TEAM_NONE)

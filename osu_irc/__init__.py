@@ -25,6 +25,7 @@ from .Classes.channel import Channel
 from .Classes.client import Client
 from .Classes.message import Message, CHANNEL_TYPE_NONE, CHANNEL_TYPE_ROOM, CHANNEL_TYPE_PM
 from .Classes.user import User
+from .Utils.regex import *
 
 class Errors(object):
 	from .Utils.errors import InvalidAuth, InvalidCredentials, PingTimeout, EmptyPayload

@@ -23,3 +23,9 @@ ReAction:"re.Pattern" = re.compile(r"\x01{1}ACTION (.+?)\x01{1}")
 ReUserName:"re.Pattern" = re.compile(r"(?:@|;| |^):(\S*?)!cho@ppy.sh[; ]")
 ReRoomName:"re.Pattern" = re.compile(r"[@; ][A-Z]+ :?(#?\S+?)(?:[; ]|$)")
 ReContent:"re.Pattern" = re.compile(r"[@; ][A-Z]+ #?\S+? :(.+)(?:[; ]|$)")
+
+# Tournament Client 
+create_pattern = re.compile(r"Created the tournament match https:\/\/osu.ppy.sh\/mp\/([0-9]+)\s(.+)")
+slot_pattern = re.compile(r"Slot.*https:\/\/osu.ppy.sh\/u\/[0-9]+\s*([0-9A-z ]+)\s*\[.*Team (.+)\]")
+join_pattern = re.compile(r"([0-9A-z ]+) joined in slot [0-9]+ for team ([A-z]+).")
+change_pattern = re.compile(r"([0-9A-z ]+) changed to ([A-z]+)")
