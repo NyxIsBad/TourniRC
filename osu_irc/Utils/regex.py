@@ -25,7 +25,7 @@ ReRoomName:"re.Pattern" = re.compile(r"[@; ][A-Z]+ :?(#?\S+?)(?:[; ]|$)")
 ReContent:"re.Pattern" = re.compile(r"[@; ][A-Z]+ #?\S+? :(.+)(?:[; ]|$)")
 
 # Tournament Client 
-create_pattern = re.compile(r"Created the tournament match https:\/\/osu.ppy.sh\/mp\/([0-9]+)\s(.+)")
-slot_pattern = re.compile(r"Slot.*https:\/\/osu.ppy.sh\/u\/[0-9]+\s*([0-9A-z ]+)\s*\[.*Team (.+)\]")
-join_pattern = re.compile(r"([0-9A-z ]+) joined in slot [0-9]+ for team ([A-z]+).")
-change_pattern = re.compile(r"([0-9A-z ]+) changed to ([A-z]+)")
+ReCreateMatch = re.compile(r"Created the tournament match https:\/\/osu.ppy.sh\/mp\/([0-9]+)\s(.+)")
+ReSlot = re.compile(r"Slot.*https:\/\/osu.ppy.sh\/u\/[0-9]+\s*([0-9A-z ]+)\s*\[.*Team (.+)\]")
+ReJoinSlot = re.compile(r"([0-9A-z ]+) joined in slot [0-9]+ for team ([A-z]+).")
+ReChangeTeam = re.compile(r"([0-9A-z ]+) changed to ([A-z]+)")

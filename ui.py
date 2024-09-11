@@ -436,23 +436,24 @@ def handle_recv_msg(data: Dict[str, Any]):
     # TODO: implement blocking, sound alerts, any required regex here
     
     if data["user_name"].lower() == "banchobot":
-        create = osu_irc.create_pattern.match(data["content"])
+        create = osu_irc.ReCreateMatch.match(data["content"])
         if create:
             start_chat(f"#mp_{create.group(1)}", osu_irc.CHANNEL_TYPE_ROOM)
             return
-        slot = osu_irc.slot_pattern.match(data["content"])
+        # TODO: detect a tournament acronym here
+        slot = osu_irc.ReSlot.match(data["content"])
         if slot:
             username = slot.group(1).strip().replace(" ", "_")
             team = team_map.get(slot.group(2).strip().lower(), TEAM_NONE)
             chats.get_chat(data['room_name']).team_change(username, team)
             return
-        join = osu_irc.join_pattern.match(data["content"])
+        join = osu_irc.ReJoinSlot.match(data["content"])
         if join:
             username = join.group(1).strip().replace(" ", "_")
             team = team_map.get(join.group(2).strip().lower(), TEAM_NONE)
             chats.get_chat(data['room_name']).team_change(username, team)
             return 
-        change = osu_irc.change_pattern.match(data["content"])
+        change = osu_irc.ReChangeTeam.match(data["content"])
         if change:
             username = change.group(1).strip().strip().replace(" ", "_")
             team = team_map.get(change.group(2).strip().lower(), TEAM_NONE)
