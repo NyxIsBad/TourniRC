@@ -12,6 +12,10 @@ THEMES = [
     "nord", "sunset"
 ]
 
+
+# ----------------- #
+# User CFG Classes  #
+# ----------------- #
 class userConfig():
     def __init__(self):
         self.username = ''
@@ -64,6 +68,9 @@ class userConfig():
     def __str__(self):
         return f'User: {self.username}\nPassword: {self.password}'
     
+# ----------------- #
+# UI CFG Classes    #
+# ----------------- #
 class uiConfig():
     def __init__(self):
         self.theme = 'dark'
@@ -104,6 +111,10 @@ class uiConfig():
     
 # we can have tourney config files here later
 
+# ------------------- #
+# Tourney CFG Classes #
+# ------------------- #
+# TODO: Finish all of this :/
 class Tournaments():
     def __init__(self):
         self.tournaments:Dict[str, tourneyConfig] = {}
@@ -211,3 +222,55 @@ class tourneyConfig():
     
     def __str__(self):
         return f'Tournament: {self.acronym} Timer: {self.timer} Match Timer: {self.match_timer} Maps: {self.maps}'
+    
+
+# ----------------- #
+# Room CFG Classes  #
+# ----------------- #
+
+class roomsConfig():
+    def __init__(self):
+        self.rooms = []
+        self.configdir = f'cfg/recentrooms.ini'
+        self.config = ConfigParser()
+
+        if not os.path.exists(self.configdir):
+            self.create_config()
+        else:
+            self.load_configs()
+
+    def create_config(self):
+        self.config['ROOMS'] = {
+            'rooms': ''
+        }
+        with open(self.configdir, 'w') as configfile:
+            self.config.write(configfile)
+
+    def load_configs(self): 
+        self.config.read(self.configdir)
+        self.rooms = self.config['ROOMS']['rooms'].split(',')
+
+    def clear_rooms(self):
+        self.config['ROOMS']['rooms'] = ''
+        with open(self.configdir, 'w') as configfile:
+            self.config.write(configfile)
+        self.rooms = []
+
+    def add_room(self, room_name):
+        if room_name in self.rooms or room_name == '':
+            return
+        self.rooms.append(room_name)
+        self.config['ROOMS']['rooms'] = ','.join(self.rooms)
+        with open(self.configdir, 'w') as configfile:
+            self.config.write(configfile)
+
+    def remove_room(self, room_name):
+        if room_name not in self.rooms:
+            return
+        self.rooms.remove(room_name)
+        self.config['ROOMS']['rooms'] = ','.join(self.rooms)
+        with open(self.configdir, 'w') as configfile:
+            self.config.write(configfile)
+
+    def __str__(self):
+        return f'Rooms: {self.rooms}'

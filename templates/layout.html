@@ -159,6 +159,9 @@
                 }, 500);
             }, duration);
         }
+        function debug_func(data) {
+            socket.emit('debug', {'data': data});
+        }
         document.addEventListener('DOMContentLoaded', () => {
             // Set theme from cookie
             const themeCookie = document.cookie.split('; ').find(row => row.startsWith('theme='));

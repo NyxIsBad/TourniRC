@@ -1,6 +1,6 @@
 from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
-from cfg import uiConfig, THEMES
+from cfg import *
 
 import json
 from typing import *
@@ -11,7 +11,8 @@ import re
 
 app = Flask(__name__)
 socketio = SocketIO(app)
-config = uiConfig()
+ui_cfg = uiConfig()
+rms_cfg = roomsConfig()
 
 TEAM_RED = 1
 TEAM_BLUE = 2
@@ -176,6 +177,7 @@ class Chat():
 
         self.type = channel_type
         self.channel_name = channel_name
+        self.alias = self.channel_name
         self.messages: List[List] = []
         # TODO: implement this or delete it depending on feedback
         # 1 = red, 2 = blue, 0 = none
@@ -219,6 +221,12 @@ class Chat():
         """
         self.match_timer = match_timer
 
+    def set_alias(self, alias: str) -> None:
+        """
+        Set the alias for the chat channel.
+        """
+        self.alias = alias
+
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__} channel_name='{self.channel_name}' num_messages={len(self.messages)}>"
 
@@ -258,6 +266,10 @@ class Chats():
         if case_insensitive_get(self.chats, channel_name):
             return
         self.chats[channel_name] = Chat(channel_name, channel_type, **kwargs)
+
+        # We only need to do this here because all other methods of opening a channel result 
+        # in a bounce to here anyway
+        rms_cfg.add_room(channel_name)
         emit('bounce_tab_open', {
             'channel': channel_name
         }, broadcast=True)
@@ -348,18 +360,18 @@ chats = Chats()
 # ---------------------
 @app.route('/')
 def chat():
-    cur_theme = config.get_theme()
+    cur_theme = ui_cfg.get_theme()
     # TODO: conditionall reroute to login if not logged in
     return render_template('chat.html', cur_theme=cur_theme, themes=THEMES)
 
 @app.route('/login')
 def login():
-    cur_theme = config.get_theme()
+    cur_theme = ui_cfg.get_theme()
     return render_template('login.html', cur_theme=cur_theme, themes=THEMES)
 
 @app.route('/settings')
 def settings():
-    cur_theme = config.get_theme()
+    cur_theme = ui_cfg.get_theme()
     return render_template('settings.html', cur_theme=cur_theme, themes=THEMES)
 
 # ---------------------
@@ -370,7 +382,7 @@ def set_theme(data: Dict[str, Any]):
     # default to dark theme
     theme: str = data.get('theme', 'dark')
     if theme in THEMES:
-        config.set_theme(theme)
+        ui_cfg.set_theme(theme)
     else:
         # I'd be shocked if this ever happens; it means the user edited some code and didn't know what they were doing
         raise ValueError(f"Theme {theme} not found.")
@@ -407,6 +419,9 @@ def handle_send_msg(data: Dict[str, Any]):
     # It's a slash command because /q is a thing
     if (chats.current_chat is None or "") and (data["content"][0] != "/"):
         return
+    # Prevent a message send if the chat is not created yet
+    if data["channel"] not in chats.chats:
+        create_notif(f"Chat {data['channel']} not found.", notif_type=NOTIF_TYPE_ERROR)
     # Slash commands
     if data["content"][0] == "/":
         command_parse(data["content"])
@@ -465,10 +480,12 @@ def handle_tab_swap(data: Dict[str, Any]):
     chats.set_current_chat(data['channel'])
     messages = chats.get_messages(data['channel'])
     emit('tab_swap_response', {
+        'alias': chats.get_chat(data['channel']).alias,
         'messages': messages,
         'timer': chats.get_chat(data['channel']).timer,
         'match_timer': chats.get_chat(data['channel']).match_timer,
-        'teams': json.dumps(chats.get_chat(data['channel']).teams)
+        'teams': json.dumps(chats.get_chat(data['channel']).teams),
+        'recent_rooms': rms_cfg.rooms
     })
 
 @socketio.on('tab_close')
@@ -483,6 +500,14 @@ def handle_set_timer(data: Dict[str, Any]):
 def handle_set_match_timer(data: Dict[str, Any]):
     chats.get_current_chat.set_match_timer(data['timer'])
 
+@socketio.on('change_alias')
+def change_alias(data: Dict[str, Any]):
+    chats.get_chat(data['channel']).set_alias(data['alias'])
+
+@socketio.on('debug')
+def debug(data: Dict[str, Any]):
+    print(data)
+    print(rms_cfg)
 # ---------------------
 # Starting webserver
 # ---------------------

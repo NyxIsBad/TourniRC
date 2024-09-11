@@ -246,6 +246,13 @@
                     <p>hello</p>
                 </div>
             </div>
+            <div class="collapse collapse-arrow join-item border rounded border-base-content mb-1">
+                <input type="checkbox" name="accordion" />
+                <div class="collapse-title text-lg font-medium">Recent Rooms</div>
+                <div id="recent-rooms" class="collapse-content flex flex-col">
+                    
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -371,6 +378,22 @@
             messages.appendChild(message_element);
         });
     }
+    function setRooms(room_list) {
+        // If this room has not been added to the recent rooms list, add it
+        const recent_rooms = document.getElementById('recent-rooms');
+        room_list.forEach(channel => {
+            if (!recent_rooms.querySelector(`div[aria-label="${channel}"]`)) {
+                debug_func(channel);
+                const recent_room = document.createElement('div');
+                recent_room.classList.add('flex');
+                recent_room.setAttribute('aria-label', channel);
+                recent_room.innerHTML = `
+                    ${channel}
+                `;
+                recent_rooms.appendChild(recent_room);
+            }
+        });
+    }
     function setTeamColors(username, team) {
         const related_messages = getUsernameMessages(username);
         console.log(related_messages);
@@ -437,6 +460,7 @@
             setTeamColors(data.username, data.team);
         });
         socket.on('bounce_tab_open', function(data) {
+            // TODO: implement the alias
             const tab_container = document.getElementById('tabs');
             var open_first = false;
             // Set flag for opening tab if we need to
@@ -444,7 +468,7 @@
                 open_first = true;
             }
             // Prevent opening the same tab twice
-            if (document.querySelector(`input[aria-label="${data.channel}"]`)) {
+            if (tab_container.querySelector(`input[aria-label="${data.channel}"]`)) {
                 return;
             }
             // Create a new tab
@@ -461,6 +485,8 @@
             if (open_first) {
                 new_tab.querySelector('.tab').click();
             }
+            // Add it to the recent rooms list
+            setRooms([data.channel]);
         })
         socket.on('cmd_part', function(data) {
             const tab = document.querySelector(`input[aria-label="${data.channel}"]`);
@@ -538,7 +564,9 @@
             if (e.target.classList.contains('tab')) {
                 const channel = e.target.getAttribute('aria-label');
                 emitAndResponse('tab_swap', channel).then((data) => {
-                    setMessages(data.messages);
+                    if (data.messages) {
+                        setMessages(data.messages);
+                    }
                     if (data.timer) {
                         // set timer
                         match_input.value = data.timer;
@@ -556,6 +584,9 @@
                     }
                     if (keepScroll) {
                         scrollToBottom();
+                    }
+                    if (data.recent_rooms) {
+                        setRooms(data.recent_rooms);
                     }
                 }).catch((error) => {
                     console.error('Tab swap failed: ' + error);

@@ -3,14 +3,14 @@ S:/Code/TourniRC/.venv/Scripts/activate
 Currently need to:
 - All the features in readme
   - Block list
-  - Room history (new UI panel)
+  - Room history (finish buttons to open a room, clear individually, clear all)
 - Double click tab to rename
-- Tournament config + functionality (Need a screen to add these, incorporate into settings?)
+- Tournament config + functionality (Need a screen to add these, incorporate into settings?) finish it
   - Buttons to send
     - Map Commands by clicking a button (read from map pool info) 
   - Sound alerts
-- Test message functionality
-  - /me messages
+
+- Fix the fact that I'm using document.querySelector instead of specific things
 
 - Resolve all TODO tags in all files and ID tags in HTML
 - Unread flags that change whether or not the unread notif shows up + whether or not special highlights show up on the tab.
@@ -33,7 +33,7 @@ All Socket IO tags:
 - tab_close: UI to UI server, deletes the chat.
   - bounce_tab_close: Close the connection by leaving the channel
 - tab_open: IRC to UI server, results in a bounce (added to Chats)
-  - bounce_tab_open: Create the tab
+  - bounce_tab_open: UI server to UI, Create the tab
 - notif: UI server to UI, creates a temporary toast.
   - Info: Unread Notifications, chat open, 
   - Warning: Incorrect command syntax
@@ -47,3 +47,6 @@ All Socket IO tags:
   - set_timer_input: UI server to UI, sets timer input value
 - set_match_timer: UI to UI server, sets mt value of current chat
   - set_match_timer_input: UI server to UI, sets mt input value
+- change_alias: UI to UI server, sets alias of a chat
+
+- debug: UI to UI server, only triggered on console command, spits out something as I need.
