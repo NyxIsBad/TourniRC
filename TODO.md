@@ -2,7 +2,7 @@ S:/Code/TourniRC/.venv/Scripts/activate
 
 Currently need to:
 - All the features in readme
-  - Block list
+  - Block list in cfg, settings
   - Room history (finish buttons to open a room, clear individually, clear all)
 - Double click tab to rename
 - Tournament config + functionality (Need a screen to add these, incorporate into settings?) finish it

@@ -30,6 +30,12 @@ team_map = {
     'none': TEAM_NONE
 }
 
+# TODO: Implement cfg for this and settings
+debug_block_list = [
+    "BLOCKED_USER_DEBUG"
+]
+debug_block_list = [name.lower() for name in debug_block_list]
+
 debug = False
 
 # ---------------------
@@ -443,6 +449,8 @@ def handle_send_msg(data: Dict[str, Any]):
 
 @socketio.on('recv_msg')
 def handle_recv_msg(data: Dict[str, Any]):
+    if data["user_name"].lower() in debug_block_list:
+        return
     if data["channel_type"] == osu_irc.CHANNEL_TYPE_ROOM:
         data["room_name"] = f"#{data['room_name']}"
     if str(data["room_name"]).lower() == chats.username.lower():
