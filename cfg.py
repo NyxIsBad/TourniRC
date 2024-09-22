@@ -231,6 +231,8 @@ class tourneyConfig():
 class roomsConfig():
     def __init__(self):
         self.rooms = []
+        # TODO: config option in settings
+        self.max_rooms = 5
         self.configdir = f'cfg/recentrooms.ini'
         self.config = ConfigParser()
 
@@ -248,7 +250,9 @@ class roomsConfig():
 
     def load_configs(self): 
         self.config.read(self.configdir)
+        # only load the last max_rooms rooms
         self.rooms = self.config['ROOMS']['rooms'].split(',')
+        self.rooms = self.rooms[-self.max_rooms:]
 
     def clear_rooms(self):
         self.config['ROOMS']['rooms'] = ''
@@ -257,9 +261,16 @@ class roomsConfig():
         self.rooms = []
 
     def add_room(self, room_name):
-        if room_name in self.rooms or room_name == '':
-            return
-        self.rooms.append(room_name)
+        if room_name == '': return
+        if room_name in self.rooms:
+            # move to top of list
+            self.rooms.remove(room_name)
+            self.rooms.append(room_name)
+        else:
+            # maximum list length
+            if len(self.rooms) >= self.max_rooms:
+                self.rooms.pop(0)
+            self.rooms.append(room_name)
         self.config['ROOMS']['rooms'] = ','.join(self.rooms)
         with open(self.configdir, 'w') as configfile:
             self.config.write(configfile)

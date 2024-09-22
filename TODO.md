@@ -1,18 +1,22 @@
 S:/Code/TourniRC/.venv/Scripts/activate
 
 Currently need to:
+
+- All TODO tags
+- Settings page:
+  - Panels for setting room history limit
+  - Block list
+  - Configure a tournament
+    - Going to want to add a button on the tournament tab to jump to this
+
 - All the features in readme
-  - Block list in cfg, settings
   - Room history (finish buttons to open a room, clear individually, clear all)
 - Double click tab to rename
-- Tournament config + functionality (Need a screen to add these, incorporate into settings?) finish it
+- Tournament tab
   - Buttons to send
     - Map Commands by clicking a button (read from map pool info) 
   - Sound alerts
 
-- Fix the fact that I'm using document.querySelector instead of specific things
-
-- Resolve all TODO tags in all files and ID tags in HTML
 - Unread flags that change whether or not the unread notif shows up + whether or not special highlights show up on the tab.
 - Pinned msg (Hotbar on top)?
 - hotkeys.js <- not touched at all need to do all of this

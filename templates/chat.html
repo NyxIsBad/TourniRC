@@ -44,7 +44,7 @@
         <div id="tabs" role="tablist" class="min-h-[40px] tabs tabs-boxed mb-4 overflow-x-auto flex">
         </div>
         <!-- Start of chat message rendering -->
-        <div class="flex-1 space-y-1 rounded bg-base-100 border border-base-content overflow-y-auto">
+        <div id="message-container" class="flex-1 space-y-1 rounded bg-base-100 border border-base-content overflow-y-auto">
             <div id="messages" class="p-2 break-all w-full">
             </div>
         </div>
@@ -338,8 +338,8 @@
         });
     }
     function scrollToBottom() {
-        const messages = document.getElementById('messages');
-        messages.scrollTop = messages.scrollHeight;
+        const msg_container = document.getElementById('message-container');
+        msg_container.scrollTop = msg_container.scrollHeight;
     }
     function clearMessages() {
         const messages = document.getElementById('messages');
