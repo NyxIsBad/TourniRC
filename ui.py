@@ -36,7 +36,7 @@ debug_block_list = [
 ]
 debug_block_list = [name.lower() for name in debug_block_list]
 
-debug = False
+debug_flag = False
 
 # ---------------------
 # Helper Functions
@@ -76,7 +76,7 @@ def start_chat(channel_name: str, channel_type: int) -> None:
     """
     Start a chat with a channel name and type from the UI server's side.
     """
-    create_notif(f"Opening chat {channel_name}...", 500, notif_type=NOTIF_TYPE_INFO)
+    create_notif(f"Opening chat {channel_name}...", 5000, notif_type=NOTIF_TYPE_INFO)
     emit('cmd_req_ch', {
         'channel': channel_name,
         'type': channel_type
@@ -86,7 +86,7 @@ def close_chat(channel_name: str) -> None:
     """
     Close a chat with a channel name from the UI server's side.
     """
-    create_notif(f"Closing chat {channel_name}...", 500, notif_type=NOTIF_TYPE_INFO)
+    create_notif(f"Closing chat {channel_name}...", 5000, notif_type=NOTIF_TYPE_INFO)
     emit('cmd_part', {
         'channel': channel_name
     }, broadcast=True)
@@ -114,7 +114,9 @@ def command_parse(command: str) -> None:
     }
 
     command = aliases.get(command, command)
-
+    if command != "/query" and chats.current_chat is None:
+        create_notif("No chat open.", notif_type=NOTIF_TYPE_WARNING)
+        return
     if command == "/query":
         if len(args) == 0:
             create_notif("Usage: /query <channel>", notif_type=NOTIF_TYPE_WARNING)
@@ -358,7 +360,7 @@ class Chats():
         return f"<{self.__class__.__name__} num_chats={len(self.chats)}>"
     
     def __str__(self) -> str:
-        return f"Chats with {len(self.chats)} channels."
+        return f"Chats with {len(self.chats)} channels, {self.chats}. Current chat: {self.current_chat}"
 
 chats = Chats()
 # ---------------------
@@ -404,7 +406,7 @@ def handle_connect():
         emit('bounce_tab_open', {
             'channel': chat.channel_name
         })
-    if debug:
+    if debug_flag:
         debug_connect()
 
 @socketio.on('nickname')
@@ -424,17 +426,19 @@ def handle_send_msg(data: Dict[str, Any]):
     # Prevent sending attempting to send messages to a nonexistent chat unless
     # It's a slash command because /q is a thing
     if (chats.current_chat is None or "") and (data["content"][0] != "/"):
-        return
-    # Prevent a message send if the chat is not created yet
-    if data["channel"] not in chats.chats:
-        create_notif(f"Chat {data['channel']} not found.", notif_type=NOTIF_TYPE_ERROR)
-    # Slash commands
-    if data["content"][0] == "/":
-        command_parse(data["content"])
+        create_notif("No chat open.", notif_type=NOTIF_TYPE_WARNING)
         return
     # Failsafe, this case occurs actually not infrequently, eg. the buttons
     if "channel" not in data:
         data["channel"] = chats.current_chat
+    # Prevent a message send if the chat is not created yet
+    elif data["channel"] not in chats.chats:
+        create_notif(f"Chat {data['channel']} not found.", notif_type=NOTIF_TYPE_ERROR)
+        return
+    # Slash commands
+    if data["content"][0] == "/":
+        command_parse(data["content"])
+        return
     emit('bounce_send_msg', {
         'content': data["content"],
         'channel': data["channel"],
@@ -514,8 +518,10 @@ def change_alias(data: Dict[str, Any]):
 
 @socketio.on('debug')
 def debug(data: Dict[str, Any]):
+    print(f'debug flag: {debug_flag}')
     print(data)
     print(rms_cfg)
+    print(chats)
 # ---------------------
 # Starting webserver
 # ---------------------
@@ -523,14 +529,14 @@ def debug_run():
     # This is meant when the UI is being run standalone, so we need to make some fake chats
     # Adding chats is optional, since any non empty chat will automatically be added
     # However the fake mp is empty so we add it here
-    global debug
-    debug = True
+    global debug_flag
+    debug_flag = True
     socketio.run(app, debug=True, host='localhost', port=5000)
 
 def debug_connect():
-    global debug
+    global debug_flag
     # Careful to only run this once
-    debug = False
+    debug_flag = False
     chats.username = "HijiriS"
     chats.add_chat("#testchat1", osu_irc.CHANNEL_TYPE_ROOM, timer=120, match_timer=5)
     chats.add_chat("testpm1", osu_irc.CHANNEL_TYPE_PM)
