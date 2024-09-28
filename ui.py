@@ -5,9 +5,9 @@ from cfg import *
 import json
 from typing import *
 import time
-from datetime import datetime
+
 import osu_irc
-import re
+from utils import *
 
 app = Flask(__name__)
 socketio = SocketIO(app)
@@ -41,27 +41,6 @@ debug_flag = False
 # ---------------------
 # Helper Functions
 # ---------------------
-def mtime(time: str) -> float:
-    """
-    Convert a time string in the format of HH:MM:SS to a timestamp compatible with time.time()
-    """
-    return datetime.strptime(time, "%H:%M:%S").replace(year=2024, month=1, day=1).timestamp()
-
-def htime(time: str) -> float:
-    """
-    Convert a time string in the format of HH:MM:SS AM/PM to a timestamp compatible with time.time()
-    """
-    return datetime.strptime(time, "%I:%M:%S %p").replace(year=2024, month=1, day=1).timestamp()
-
-def case_insensitive_get(d: Dict[str, Any], key: str) -> Any:
-    """
-    Get channel name from Chats dictionary in a case insensitive manner.
-    """
-    for k in d.keys():
-        if k.lower() == key.lower():
-            return k
-    return None
-
 def create_notif(content: str, duration: int = 5000, notif_type: str = NOTIF_TYPE_DEFAULT) -> None:
     """
     Create a notification with content and duration in ms.

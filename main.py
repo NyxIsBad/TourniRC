@@ -44,6 +44,7 @@ if __name__ == "__main__":
 
         print(f"Username: {username}")
         print(f"Password: {password}")
+        print(f"Navigate to http://localhost:5000 to access the client")
         me = Client(token=password, nickname=username, logger=Log)
         me.run()
     except KeyboardInterrupt:

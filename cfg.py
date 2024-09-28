@@ -261,7 +261,8 @@ class roomsConfig():
         self.rooms = []
 
     def add_room(self, room_name):
-        if room_name == '': return
+        # don't add empty or BanchoBot
+        if room_name == '' or 'BanchoBot': return
         if room_name in self.rooms:
             # move to top of list
             self.rooms.remove(room_name)
