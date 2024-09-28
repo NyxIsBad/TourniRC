@@ -357,6 +357,9 @@
         } else {
             team_class = '';
         }
+        if (user == 'BanchoBot') {
+            team_class = 'text-green-500';
+        }
         message_element.innerHTML = `
             <time class="time mr-1 whitespace-nowrap" data-time="${time_obj.toISOString()}">${time_str}</time>
             <a href="https://osu.ppy.sh/users/${user}", target="_blank" rel="noopener noreferrer" class="font-semibold mr-1 whitespace-nowrap ${team_class}">${user}:</a>

@@ -30,7 +30,7 @@ team_map = {
     'none': TEAM_NONE
 }
 
-# TODO: Implement cfg for this and settings
+# TODO: Implement cfg for this and settings, and make it PMs only
 debug_block_list = [
     "BLOCKED_USER_DEBUG"
 ]
@@ -119,6 +119,7 @@ def command_parse(command: str) -> None:
         return
     if command == "/query":
         if len(args) == 0:
+            # TODO: make this work, the <> is currently escaped in HTML
             create_notif("Usage: /query <channel>", notif_type=NOTIF_TYPE_WARNING)
         else:
             start_chat(args[0], osu_irc.CHANNEL_TYPE_ROOM if args[0].startswith("#") else osu_irc.CHANNEL_TYPE_PM)

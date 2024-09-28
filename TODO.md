@@ -3,11 +3,18 @@ S:/Code/TourniRC/.venv/Scripts/activate
 Currently need to:
 
 - All TODO tags
-- Settings page:
+- Settings page as a toast:
+  - Custom banchobot color
   - Panels for setting room history limit
   - Block list
   - Configure a tournament
     - Going to want to add a button on the tournament tab to jump to this
+
+- Help page as a toast:
+  - Explain command shorthands
+  - Hotkeys??
+  - How to navigate settings page and change themes
+  - How to log in (.ini)
 
 - All the features in readme
   - Room history (finish buttons to open a room, clear individually, clear all)
