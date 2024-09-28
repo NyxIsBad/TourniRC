@@ -115,13 +115,26 @@
             // alert-info alert-success alert-warning alert-error
             alert_element.innerHTML = `
                 <div class="flex flex-wrap items-start overflow-x-hidden justify-between w-56">
-                    <span class="self-start overflow-hidden text-ellipsis flex-1 whitespace-pre-wrap mr-2">${content}</span>
-                    <button class="whitespace-nowrap self-center toast-close mr-1" aria-label="Close">
-                        &times;
-                    </button>
                 </div>
                 <progress class="progress w-56 mt-2" value="0" max="100"></progress>
             `;
+
+            const div = alert_element.querySelector('div');
+
+            // Create and append the span element
+            const span = document.createElement('span');
+            span.classList.add('self-start', 'overflow-hidden', 'text-ellipsis', 'flex-1', 'whitespace-pre-wrap', 'mr-2');
+            span.innerText = content;  // Set as innerText
+
+            // Create and append the button element
+            const button = document.createElement('button');
+            button.classList.add('whitespace-nowrap', 'self-center', 'toast-close', 'mr-1');
+            button.setAttribute('aria-label', 'Close');
+            button.innerHTML = '&times;';
+
+            div.appendChild(span);
+            div.appendChild(button);
+
             toasts.appendChild(alert_element);
 
             // Close button

@@ -12,7 +12,6 @@ THEMES = [
     "nord", "sunset"
 ]
 
-
 # ----------------- #
 # User CFG Classes  #
 # ----------------- #

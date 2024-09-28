@@ -357,9 +357,15 @@
         }
         message_element.innerHTML = `
             <time class="time mr-1 whitespace-nowrap" data-time="${time_obj.toISOString()}">${time_str}</time>
-            <a href="https://osu.ppy.sh/users/${user}", target="_blank" rel="noopener noreferrer" class="font-semibold mr-1 whitespace-nowrap ${team_class}">${user}:</a>
-            <span class="flex-1 overflow-hidden text-ellipsis whitespace-pre-wrap	">${urlify(content)}</span>
+            <a href="https://osu.ppy.sh/users/${user}" target="_blank" rel="noopener noreferrer" class="font-semibold mr-1 whitespace-nowrap ${team_class}">${user}:</a>
         `;
+
+        const span = document.createElement('span');
+        span.classList.add('flex-1', 'overflow-hidden', 'text-ellipsis', 'whitespace-pre-wrap');
+        span.innerText = urlify(content);  // Set as innerText to avoid XSS
+
+        message_element.appendChild(span);
+
         if (!keepTimestamps) {
             message_element.querySelector('.time').classList.add('hidden');
         }
@@ -385,7 +391,7 @@
                 const recent_room = document.createElement('div');
                 recent_room.classList.add('flex');
                 recent_room.setAttribute('aria-label', channel);
-                recent_room.innerHTML = `
+                recent_room.innerText = `
                     ${channel}
                 `;
                 recent_rooms.appendChild(recent_room);
