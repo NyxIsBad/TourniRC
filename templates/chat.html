@@ -231,7 +231,15 @@
                 <input type="checkbox" name="accordion" />
                 <div class="collapse-title text-lg font-medium">Players</div>
                 <div class="collapse-content">
-                    <p>hello</p>
+                    <h1 class="text-red-500">Red</h1>
+                    <div id="red-players" class="flex flex-col">
+                    </div>
+                    <h1 class="text-blue-500">Blue</h1>
+                    <div id="blue-players" class="flex flex-col">
+                    </div>
+                    <h1>None</h1>
+                    <div id="none-players" class="flex flex-col">
+                    </div>
                 </div>
             </div>
             <div class="collapse collapse-arrow join-item border rounded border-base-content mb-1">
@@ -358,13 +366,8 @@
         message_element.innerHTML = `
             <time class="time mr-1 whitespace-nowrap" data-time="${time_obj.toISOString()}">${time_str}</time>
             <a href="https://osu.ppy.sh/users/${user}" target="_blank" rel="noopener noreferrer" class="font-semibold mr-1 whitespace-nowrap ${team_class}">${user}:</a>
+            <span class="flex-1 overflow-hidden text-ellipsis whitespace-pre-wrap">${urlify(content)}</span>
         `;
-
-        const span = document.createElement('span');
-        span.classList.add('flex-1', 'overflow-hidden', 'text-ellipsis', 'whitespace-pre-wrap');
-        span.innerText = urlify(content);  // Set as innerText to avoid XSS
-
-        message_element.appendChild(span);
 
         if (!keepTimestamps) {
             message_element.querySelector('.time').classList.add('hidden');
@@ -402,6 +405,7 @@
         const related_messages = getUsernameMessages(username);
         console.log(related_messages);
         related_messages.forEach((element) => {
+            // TODO: add to teams section here
             if (team === 0) {
                 // remove team color tags
                 element.classList.remove('text-red-500');

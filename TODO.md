@@ -3,6 +3,8 @@ S:/Code/TourniRC/.venv/Scripts/activate
 Currently need to:
 
 - All TODO tags
+- raise PingTimeout -> reconnect
+- Names with spaces in them (-xxx Rumia-) don't get assigned teams correctly.
 - Settings page as a toast:
   - Custom banchobot color
   - Panels for setting room history limit
