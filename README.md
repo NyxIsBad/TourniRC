@@ -1,6 +1,6 @@
 # TourniRC
 
-TourniRC is an indev iRC client aiming to be a tournament client for osu built on python and flask. As a consequence of commonplace sheet practice, some commands & features that I would honestly like to have for the sake of completeness weren't added because it would make them redundant. It will ims to do what BrigittaBlazor and c4o haven't done by providing (most of which are still unimplemented):
+TourniRC is an indev iRC client aiming to be a tournament client for osu built on python and flask. As a consequence of commonplace sheet practice, some commands & features that I would honestly like to have for the sake of completeness weren't added because it would make them redundant. It will aim to do what BrigittaBlazor and c4o haven't done by providing (most of which are still unimplemented):
 
 ## Features you're familiar with from Brigitta / c4o:
 - Buttons to send ref commands (timers, aborts, starts, setting, clearhost)
@@ -11,6 +11,7 @@ TourniRC is an indev iRC client aiming to be a tournament client for osu built o
 - Automatic dc/rc logic
 
 ## New Features:
+- Stronger disconnect logic, including saving open rooms and automatically reconnecting to them, preserving chat history, etc. 
 - Block list
   - Settings for users
 - Hotkeys to change channels
@@ -33,3 +34,17 @@ TourniRC is an indev iRC client aiming to be a tournament client for osu built o
 - Git clone the repo
 - `pip install -r requirements.txt`
 - `npm run main`
+
+## Diagnostic Logs
+
+TourniRC writes its runtime diagnostics to `logs/` automatically:
+
+- `irc.log` contains the traditional human-readable application log and is reset on startup.
+- `irc-events.log` contains rotating JSON-lines records for raw IRC traffic, parsed IRC events, errors, and reconnect state.
+- `ui-events.log` contains rotating JSON-lines records for browser and Socket.IO activity.
+
+IRC passwords and tokens are automatically replaced with `[REDACTED]`. Chat messages and channel names are retained for debugging, so log files should still be treated as private. Structured event logs rotate at 5 MB and retain three backups.
+
+## Message Delivery During Connection Loss
+
+irc is shit and does not have acks for message sends. thus, TourniRC does not automatically resend messages after reconnecting. This is intentional: replaying referee commands such as abort, timer, or match-control commands can duplicate. I added a warning but there is a stale window between when you can dc and when things are back, so if you get a reconnect window, you might have lost some state. 

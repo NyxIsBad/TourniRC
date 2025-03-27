@@ -4,6 +4,7 @@ import logging
 import time
 import asyncio
 import traceback
+import random
 from .message import Message
 from .stores import ChannelStore, UserStore
 from .channel import Channel
@@ -47,10 +48,16 @@ class Client(object):
 		# runtime vars
 		self.running:bool = False
 		self.auth_success:bool = False
+		self.ever_authenticated:bool = False
+		self.reconnect_attempt:int = 0
+		self.read_timeout:float = kwargs.get("read_timeout", 60 * 6)
+		self.max_reconnect_delay:float = kwargs.get("max_reconnect_delay", 30)
+		self._retry_now = asyncio.Event()
 		self.query_running:bool = False
 		self.last_ping:float = time.time()
 		self.traffic:int = 0
 		self.stored_traffic:List[str, bytes] = []
+		self._traffic_task:Optional[asyncio.Task] = None
 
 		# Connection objects
 		self.ConnectionReader:Optional[asyncio.StreamReader] = None
@@ -65,8 +72,23 @@ class Client(object):
 		"""
 		Log.debug(f"Client.stop() has been called, shutting down")
 		self.running = False
-		self.ConnectionWriter.close()
-		self.Loop.stop()
+		self.query_running = False
+		if self.Loop.is_running():
+			self.Loop.call_soon_threadsafe(self._retry_now.set)
+		else:
+			self._retry_now.set()
+		if self.ConnectionWriter:
+			if self.Loop.is_running():
+				self.Loop.call_soon_threadsafe(self.ConnectionWriter.close)
+			else:
+				self.ConnectionWriter.close()
+
+	def retryNow(self) -> None:
+		"""Interrupt the reconnect delay and immediately make another attempt."""
+		if self.Loop.is_running():
+			self.Loop.call_soon_threadsafe(self._retry_now.set)
+		else:
+			self._retry_now.set()
 
 	def run(self) -> None:
 		"""
@@ -79,11 +101,9 @@ class Client(object):
 			raise RuntimeError("already running")
 
 		Log.debug(f"Client.run() has been called, creating loop and wrapping future")
-		MainFuture:asyncio.Future = asyncio.ensure_future(self.start(), loop=self.Loop)
-		MainFuture.add_done_callback(self.stop)
 		try:
-			Log.debug(f"Client.run() starting Client.start() future")
-			self.Loop.run_forever()
+			Log.debug(f"Client.run() starting Client.start()")
+			self.Loop.run_until_complete(self.start())
 		except KeyboardInterrupt:
 			Log.debug(f"Client.run() stopped by KeyboardInterrupt")
 		finally:
@@ -91,12 +111,9 @@ class Client(object):
 
 			# Client.stop should be called once, if you break out via exceptions,
 			# since Client.stop also called the Loop to stop, we do some cleanup now
-			MainFuture.remove_done_callback(self.stop)
-			Log.debug(f"Removing MainFuture callback")
-
 			# gather all task of the loop (that will mostly be stuff like: addTraffic())
 			Log.debug(f"Collecting all Client.Loop tasks")
-			tasks:List[asyncio.Task] = [task for task in asyncio.Task.all_tasks(self.Loop) if not task.done()]
+			tasks:List[asyncio.Task] = [task for task in asyncio.all_tasks(self.Loop) if not task.done()]
 			Log.debug(f"Canceling {len(tasks)} tasks...")
 			for task in tasks:
 				task.cancel() # set all task to be cancelled
@@ -150,15 +167,15 @@ class Client(object):
 			self.traffic = 0
 			self.channels = ChannelStore()
 			self.users = UserStore()
-			self.query_running = True
 			self.auth_success = False
-			if self.ConnectionWriter:
-				self.ConnectionWriter.close()
+			await self.closeConnection()
+			self.query_running = True
 
 			# not resetting self.stored_traffic, maybe there is something inside
 			Log.debug("Client resettled main attributes")
 
 			try:
+				await self.onConnecting(self.reconnect_attempt + 1)
 				# init connection
 				self.ConnectionReader, self.ConnectionWriter = await asyncio.open_connection(host=self.host, port=self.port)
 				Log.debug("Client successful create connection Reader/Writer pair")
@@ -168,28 +185,20 @@ class Client(object):
 				await sendNick(self)
 
 				# start listen
-				asyncio.ensure_future(trafficQuery(self))
+				self._traffic_task = asyncio.ensure_future(trafficQuery(self))
 				Log.debug("Client sent base data, continue to listen for response...")
 				await self.listen() # <- that processes stuff
 
-			except InvalidAuth:
+			except InvalidAuth as E:
 				Log.error("Invalid Auth for osu!, please check `token` and `nickname`, not trying to reconnect")
+				await self.onAuthenticationFailed(E)
 				self.stop()
 				continue
 
-			except InvalidCredentials:
+			except InvalidCredentials as E:
 				Log.error("osu! never send any response, check credentials for syntax, not trying to reconnect")
+				await self.onAuthenticationFailed(E)
 				self.stop()
-				continue
-
-			except EmptyPayload as E:
-				Log.error("Empty payload from osu, trying reconnect")
-				await self.onError(E)
-				continue
-
-			except PingTimeout as E:
-				Log.error("osu! don't give ping response, trying reconnect")
-				await self.onError(E)
 				continue
 
 			except KeyboardInterrupt:
@@ -198,10 +207,40 @@ class Client(object):
 
 			except Exception as E:
 				await self.onError(E)
-				if self.running:
-					await asyncio.sleep(5)
-				else:
+				if not self.running:
 					continue
+				if not self.reconnect:
+					await self.onDisconnected(E, 0, 0)
+					self.stop()
+					continue
+				self.reconnect_attempt += 1
+				base_delay = min(2 ** (self.reconnect_attempt - 1), self.max_reconnect_delay)
+				delay = min(base_delay + random.uniform(0, .25), self.max_reconnect_delay)
+				await self.onDisconnected(E, self.reconnect_attempt, delay)
+				await self.closeConnection()
+				self._retry_now.clear()
+				try:
+					await asyncio.wait_for(self._retry_now.wait(), timeout=delay)
+				except asyncio.TimeoutError:
+					pass
+
+	async def closeConnection(self) -> None:
+		self.query_running = False
+		if self._traffic_task and not self._traffic_task.done():
+			self._traffic_task.cancel()
+			await asyncio.gather(self._traffic_task, return_exceptions=True)
+		self._traffic_task = None
+		writer = self.ConnectionWriter
+		self.ConnectionReader = None
+		self.ConnectionWriter = None
+		if writer:
+			writer.close()
+			wait_closed = getattr(writer, "wait_closed", None)
+			if wait_closed:
+				try:
+					await wait_closed()
+				except (ConnectionError, OSError):
+					pass
 
 	async def listen(self):
 
@@ -209,21 +248,17 @@ class Client(object):
 		while self.running:
 
 			Log.debug("Client awaiting response...")
-			payload:bytes = await self.ConnectionReader.readline()
+			try:
+				payload:bytes = await asyncio.wait_for(self.ConnectionReader.readline(), timeout=self.read_timeout)
+			except asyncio.TimeoutError as E:
+				raise PingTimeout() from E
 			Log.debug(f"Client received {len(payload)} bytes of data.")
 			asyncio.ensure_future(self.onRaw(payload))
 			payload:str = payload.decode('UTF-8').strip('\n').strip('\r')
 
 			# just to be sure
 			if payload in ["", " ", None] or not payload:
-				if self.auth_success:
-					raise EmptyPayload()
-				else:
-					raise InvalidCredentials()
-
-			# last ping is over 6min (way over twitch normal response)
-			if (time.time() - self.last_ping) > 60*6:
-				raise PingTimeout()
+				raise EmptyPayload()
 
 			# check if the content is known garbage
 			garbage:bool = await garbageDetector(self, payload)
@@ -349,7 +384,16 @@ class Client(object):
 		called every time something goes wrong
 		"""
 		Log.error(Ex)
-		traceback.print_exc()
+		Log.debug(traceback.format_exc())
+
+	async def onConnecting(self, attempt:int) -> None:
+		pass
+
+	async def onDisconnected(self, Ex:BaseException, attempt:int, retry_delay:float) -> None:
+		pass
+
+	async def onAuthenticationFailed(self, Ex:BaseException) -> None:
+		pass
 
 	async def onLimit(self, payload:bytes) -> None:
 		"""

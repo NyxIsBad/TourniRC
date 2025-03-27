@@ -1,4 +1,4 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, redirect, url_for
 from flask_socketio import SocketIO, emit
 from cfg import *
 
@@ -8,11 +8,31 @@ import time
 
 import osu_irc
 from utils import *
+from eventlog import EventLog
 
 app = Flask(__name__)
 socketio = SocketIO(app)
 ui_cfg = uiConfig()
 rms_cfg = roomsConfig()
+user_cfg = userConfig()
+
+IRC_STATE_CONNECTING = 'connecting'
+IRC_STATE_AUTHENTICATED = 'authenticated'
+IRC_STATE_RECONNECTING = 'reconnecting'
+IRC_STATE_AUTH_FAILED = 'authentication_failed'
+IRC_STATE_LOGGED_OUT = 'logged_out'
+
+connection_state = {
+    'state': IRC_STATE_CONNECTING if user_cfg.has_credentials() else IRC_STATE_LOGGED_OUT,
+    'attempt': 0,
+    'retry_in': 0
+}
+pending_credentials = None
+UI_EVENTS = EventLog('ui', 'logs/ui-events.log')
+
+
+def log_socket_event(name: str, data: Any = None) -> None:
+    UI_EVENTS.write('socket_event', name=name, data=data)
 
 TEAM_RED = 1
 TEAM_BLUE = 2
@@ -45,11 +65,13 @@ def create_notif(content: str, duration: int = 5000, notif_type: str = NOTIF_TYP
     """
     Create a notification with content and duration in ms.
     """
-    emit('notif', {
+    payload = {
         "content": content,
         "duration": duration,
         "type": notif_type
-    })
+    }
+    UI_EVENTS.write('notification', data=payload)
+    emit('notif', payload)
 
 def start_chat(channel_name: str, channel_type: int) -> None:
     """
@@ -267,9 +289,10 @@ class Chats():
         Remove a chat channel from the chat list. Bounces the tab close event to the IRC client so it can PART
         """
         if channel_name in self.chats:
-            self.chats.pop(channel_name)
+            removed_chat = self.chats.pop(channel_name)
             socketio.emit('bounce_tab_close', {
-                'channel': channel_name
+                'channel': channel_name,
+                'type': removed_chat.type
             })
             if self.chat_count == 0:
                 self.current_chat = None
@@ -336,6 +359,20 @@ class Chats():
     def channel_names(self) -> List[str]:
         return list(self.chats.keys())
 
+    def session_state(self) -> Dict[str, Any]:
+        return {
+            'chats': [
+                {'channel': chat.channel_name, 'type': chat.type}
+                for chat in self.chats.values()
+            ],
+            'current_chat': self.current_chat
+        }
+
+    def clear(self) -> None:
+        self.chats.clear()
+        self.current_chat = None
+        self.username = None
+
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__} num_chats={len(self.chats)}>"
     
@@ -349,7 +386,8 @@ chats = Chats()
 @app.route('/')
 def chat():
     cur_theme = ui_cfg.get_theme()
-    # TODO: conditionall reroute to login if not logged in
+    if not user_cfg.has_credentials() and pending_credentials is None:
+        return redirect(url_for('login'))
     return render_template('chat.html', cur_theme=cur_theme, themes=THEMES)
 
 @app.route('/login')
@@ -367,6 +405,7 @@ def settings():
 # ---------------------
 @socketio.on('theme')
 def set_theme(data: Dict[str, Any]):
+    log_socket_event('theme', data)
     # default to dark theme
     theme: str = data.get('theme', 'dark')
     if theme in THEMES:
@@ -380,32 +419,50 @@ def set_theme(data: Dict[str, Any]):
 # ---------------------
 @socketio.on('connect')
 def handle_connect():
-    # For the sake of simplicity we won't have
-    # any ident procedures
+    log_socket_event('connect')
+    emit('connection_state', connection_state)
+    if debug_flag:
+        debug_connect()
+
+@socketio.on('browser_ready')
+def handle_browser_ready():
+    log_socket_event('browser_ready')
     for chat in chats.chats.values():
         emit('bounce_tab_open', {
             'channel': chat.channel_name
         })
-    if debug_flag:
-        debug_connect()
+    emit('connection_state', connection_state)
+    if chats.current_chat:
+        emit('restore_tab', {'channel': chats.current_chat})
 
 @socketio.on('nickname')
 def handle_nickname(data: Dict[str, Any]):
+    log_socket_event('nickname', data)
     chats.username = data['nickname']
 
 @socketio.on('disconnect')
 def handle_disconnect():
+    log_socket_event('disconnect')
     print('A Client disconnected')
 
 @socketio.on('tab_open')
 def handle_tab_open(data: Dict[str, Any]):
+    log_socket_event('tab_open', data)
     chats.add_chat(data['channel'], data['type'])
 
 @socketio.on('send_msg')
 def handle_send_msg(data: Dict[str, Any]):
+    log_socket_event('send_msg', data)
+    if connection_state['state'] != IRC_STATE_AUTHENTICATED:
+        create_notif("Messages cannot be sent while disconnected.", notif_type=NOTIF_TYPE_WARNING)
+        return
     # Prevent sending attempting to send messages to a nonexistent chat unless
     # It's a slash command because /q is a thing
-    if (chats.current_chat is None or "") and (data["content"][0] != "/"):
+    content = str(data.get("content", "")).strip()
+    if not content:
+        return
+    data["content"] = content
+    if chats.current_chat is None and content[0] != "/":
         create_notif("No chat open.", notif_type=NOTIF_TYPE_WARNING)
         return
     # Failsafe, this case occurs actually not infrequently, eg. the buttons
@@ -433,6 +490,7 @@ def handle_send_msg(data: Dict[str, Any]):
 
 @socketio.on('recv_msg')
 def handle_recv_msg(data: Dict[str, Any]):
+    log_socket_event('recv_msg', data)
     if data["user_name"].lower() in debug_block_list:
         return
     if data["channel_type"] == osu_irc.CHANNEL_TYPE_ROOM:
@@ -469,6 +527,7 @@ def handle_recv_msg(data: Dict[str, Any]):
 
 @socketio.on('tab_swap')
 def handle_tab_swap(data: Dict[str, Any]):
+    log_socket_event('tab_swap', data)
     chats.set_current_chat(data['channel'])
     messages = chats.get_messages(data['channel'])
     emit('tab_swap_response', {
@@ -482,22 +541,85 @@ def handle_tab_swap(data: Dict[str, Any]):
 
 @socketio.on('tab_close')
 def handle_tab_close(data: Dict[str, Any]):
+    log_socket_event('tab_close', data)
     chats.remove_chat(data['channel'])
+
+# ---------------------
+# IRC Session Routes
+# ---------------------
+@socketio.on('login_submit')
+def handle_login_submit(data: Dict[str, Any]):
+    # try to login with pending credentials
+    log_socket_event('login_submit', data)
+    global pending_credentials
+    username = str(data.get('username', '')).strip()
+    password = str(data.get('password', '')).strip()
+    if not username or not password:
+        # if we suck, try again
+        emit('login_result', {'ok': False, 'error': 'Please fill in both username and IRC password.'})
+        return
+
+    pending_credentials = (username, password)
+    connection_state.update({'state': IRC_STATE_CONNECTING, 'attempt': 0, 'retry_in': 0})
+    emit('cmd_login', {'username': username, 'password': password}, broadcast=True)
+    emit('connection_state', connection_state, broadcast=True)
+    emit('login_result', {'ok': True})
+
+@socketio.on('irc_retry')
+def handle_irc_retry():
+    # gonna have lots of logging
+    log_socket_event('irc_retry')
+    emit('cmd_reconnect', {}, broadcast=True)
+
+@socketio.on('logout')
+def handle_logout():
+    log_socket_event('logout')
+    global pending_credentials
+    pending_credentials = None
+    user_cfg.clear_credentials()
+    chats.clear()
+    rms_cfg.clear_rooms()
+    connection_state.update({'state': IRC_STATE_LOGGED_OUT, 'attempt': 0, 'retry_in': 0})
+    emit('cmd_logout', {}, broadcast=True)
+    emit('connection_state', connection_state, broadcast=True)
+    emit('logout_complete')
+
+@socketio.on('irc_state')
+def handle_irc_state(data: Dict[str, Any]):
+    log_socket_event('irc_state', data)
+    global pending_credentials
+    if data.get('state') == IRC_STATE_AUTHENTICATED and pending_credentials:
+        user_cfg.set_credentials(*pending_credentials)
+        pending_credentials = None
+    elif data.get('state') == IRC_STATE_AUTH_FAILED:
+        pending_credentials = None
+    connection_state.clear()
+    connection_state.update(data)
+    emit('connection_state', connection_state, broadcast=True)
+
+@socketio.on('session_state')
+def handle_session_state():
+    log_socket_event('session_state')
+    return chats.session_state()
 
 @socketio.on('set_timer')
 def handle_set_timer(data: Dict[str, Any]):
+    log_socket_event('set_timer', data)
     chats.get_current_chat.set_timer(data['timer'])
 
 @socketio.on('set_match_timer')
 def handle_set_match_timer(data: Dict[str, Any]):
+    log_socket_event('set_match_timer', data)
     chats.get_current_chat.set_match_timer(data['timer'])
 
 @socketio.on('change_alias')
 def change_alias(data: Dict[str, Any]):
+    log_socket_event('change_alias', data)
     chats.get_chat(data['channel']).set_alias(data['alias'])
 
 @socketio.on('debug')
 def debug(data: Dict[str, Any]):
+    log_socket_event('debug', data)
     print(f'debug flag: {debug_flag}')
     print(data)
     print(rms_cfg)

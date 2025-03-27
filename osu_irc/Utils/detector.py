@@ -4,7 +4,6 @@ if TYPE_CHECKING:
 
 import re
 import time
-import asyncio
 from ..Utils.cmd import sendPong
 from ..Utils.errors import InvalidAuth
 from ..Utils.handler import (
@@ -71,11 +70,13 @@ async def mainEventDetector(cls:"Client", payload:str) -> bool:
 
 	# handles events: onReady, onReconnect
 	if re.match(ReOnReady, payload) is not None:
-		if cls.auth_success:
-			# means we got a reconnect
-			asyncio.ensure_future(cls.onReconnect())
+		was_authenticated = cls.ever_authenticated
 		cls.auth_success = True
-		asyncio.ensure_future(cls.onReady())
+		cls.ever_authenticated = True
+		cls.reconnect_attempt = 0
+		if was_authenticated:
+			await cls.onReconnect()
+		await cls.onReady()
 		return True
 
 	# wrong_auth

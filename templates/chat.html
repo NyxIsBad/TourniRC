@@ -496,6 +496,10 @@
             // Add it to the recent rooms list
             setRooms([data.channel]);
         })
+        socket.on('restore_tab', function(data) {
+            const tab = document.querySelector(`input[aria-label="${data.channel}"]`);
+            if (tab) tab.click();
+        });
         socket.on('cmd_part', function(data) {
             const tab = document.querySelector(`input[aria-label="${data.channel}"]`);
             // Click the close button
@@ -684,6 +688,7 @@
         savelog.addEventListener('click', (e) => {
             socket.emit('send_msg', { content: '/savelog' });
         });
+        socket.emit('browser_ready');
     });
 </script>
 {% endblock %}

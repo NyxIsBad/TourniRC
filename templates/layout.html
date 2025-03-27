@@ -39,16 +39,16 @@
                     <ul
                         tabindex="0"
                         class="menu menu-sm dropdown-content bg-base-100 rounded-box z-[1] mt-3 w-52 p-2 shadow">
-                        <li><a>Chat</a></li>
-                        <li><a>Settings</a></li>
+                        <li><a href="/">Chat</a></li>
+                        <li><a href="/settings">Settings</a></li>
                     </ul>
                 </div>
                 <a class="btn btn-ghost text-xl">TourniRC</a>
             </div>
             <div class="navbar-center hidden lg:flex">
                 <ul class="menu menu-horizontal px-1">
-                    <li><a>Chat</a></li>
-                    <li><a>Settings</a></li>
+                    <li><a href="/">Chat</a></li>
+                    <li><a href="/settings">Settings</a></li>
                 </ul>
             </div>
             <div class="navbar-end">
@@ -103,6 +103,22 @@
     
     <!-- Toasts/Notifications -->
     <div class="toast" id="toasts">
+    </div>
+    <div id="connection-overlay" class="fixed inset-0 z-[100] hidden items-center justify-center bg-base-300/80 backdrop-blur-sm">
+        <div class="card w-full max-w-md border border-base-content bg-base-100 text-base-content shadow-2xl">
+            <div class="card-body items-center text-center">
+                <span class="loading loading-spinner loading-lg text-primary"></span>
+                <h2 id="connection-title" class="card-title">Connecting to Bancho</h2>
+                <div id="connection-message-warning" class="alert alert-warning hidden text-left">
+                    <span><strong>BY THE WAY:</strong> Messages sent shortly before this disconnect may not have reached Bancho, even if they appeared in chat.</span>
+                </div>
+                <p id="connection-detail">Establishing the IRC connection…</p>
+                <div class="card-actions mt-2 justify-center">
+                    <button id="connection-retry" class="btn btn-primary">Retry now</button>
+                    <button id="connection-logout" class="btn btn-outline btn-error">Logout</button>
+                </div>
+            </div>
+        </div>
     </div>
     <!-- JavaScript to handle theme switching and persistence -->
     <script>
@@ -208,6 +224,42 @@
                 data.type ? data.type : ''
             )
         });
+        function updateConnectionState(data) {
+            const overlay = document.getElementById('connection-overlay');
+            if (!overlay || window.location.pathname === '/login') return;
+
+            if (data.state === 'authenticated') {
+                overlay.classList.add('hidden');
+                overlay.classList.remove('flex');
+                return;
+            }
+            if (data.state === 'logged_out') {
+                window.location.assign('/login');
+                return;
+            }
+
+            overlay.classList.remove('hidden');
+            overlay.classList.add('flex');
+            const title = document.getElementById('connection-title');
+            const detail = document.getElementById('connection-detail');
+            const messageWarning = document.getElementById('connection-message-warning');
+            messageWarning?.classList.toggle('hidden', data.state !== 'reconnecting');
+            if (data.state === 'authentication_failed') {
+                title.textContent = 'Authentication failed';
+                detail.textContent = data.reason || 'Check your osu! IRC credentials and log in again.';
+            } else if (data.state === 'reconnecting') {
+                title.textContent = 'Reconnecting to Bancho';
+                const retry = data.retry_in ? ` Retrying in ${data.retry_in} seconds.` : '';
+                detail.textContent = (data.reason || 'The IRC connection was lost.') + retry;
+            } else {
+                title.textContent = 'Connecting to Bancho';
+                detail.textContent = 'Establishing the IRC connection…';
+            }
+        }
+        socket.on('connection_state', updateConnectionState);
+        document.getElementById('connection-retry')?.addEventListener('click', () => socket.emit('irc_retry'));
+        document.getElementById('connection-logout')?.addEventListener('click', () => socket.emit('logout'));
+        socket.on('logout_complete', () => window.location.assign('/login'));
     </script>
 </body>
 </html>

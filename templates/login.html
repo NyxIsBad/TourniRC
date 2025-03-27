@@ -15,7 +15,7 @@
                     <path
                         d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM12.735 14c.618 0 1.093-.561.872-1.139a6.002 6.002 0 0 0-11.215 0c-.22.578.254 1.139.872 1.139h9.47Z" />
                 </svg>
-                <input type="text" class="grow" placeholder="osu! Username" />
+                <input id="login-username" type="text" class="grow" placeholder="osu! Username" autocomplete="username" />
             </label>
         </form>
         <form id="password-form" class="mb-4">
@@ -30,7 +30,7 @@
                         d="M14 6a4 4 0 0 1-4.899 3.899l-1.955 1.955a.5.5 0 0 1-.353.146H5v1.5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1-.5-.5v-2.293a.5.5 0 0 1 .146-.353l3.955-3.955A4 4 0 1 1 14 6Zm-4-2a.75.75 0 0 0 0 1.5.5.5 0 0 1 .5.5.75.75 0 0 0 1.5 0 2 2 0 0 0-2-2Z"
                         clip-rule="evenodd" />
                 </svg>
-                <input type="password" class="grow" placeholder="IRC Token" />
+                <input id="login-password" type="password" class="grow" placeholder="IRC Password" autocomplete="current-password" />
             </label>
         </form>
         <!-- Login Button, aligned right -->
@@ -48,18 +48,24 @@
 </div>
 <script>
     // Login
-    document.getElementById('login-button').addEventListener('click', async () => {
-        const username = document.getElementById('username-form').querySelector('input')
-        const password = document.getElementById('password-form').querySelector('input')
-        if (username && password) {
-            console.log(username.value, password.value);
-            // Clear Inputs
-            username.value = '';
-            password.value = '';
+    document.getElementById('login-button').addEventListener('click', () => {
+        const username = document.getElementById('login-username');
+        const password = document.getElementById('login-password');
+        if (!username.value.trim() || !password.value.trim()) {
+            makeNotification("Please fill in both username and IRC password", 5000, "error");
+            return;
         }
-        else {
-            makeNotification("Please fill in both username and password", "5000", "error");
+        document.getElementById('login-button').disabled = true;
+        socket.emit('login_submit', {username: username.value.trim(), password: password.value.trim()});
+    });
+    socket.on('login_result', (data) => {
+        if (data.ok) {
+            document.getElementById('login-password').value = '';
+            window.location.assign('/');
+            return;
         }
+        document.getElementById('login-button').disabled = false;
+        makeNotification(data.error || "Unable to log in", 5000, "error");
     });
     // Enter key
     document.addEventListener('keydown', (e) => {

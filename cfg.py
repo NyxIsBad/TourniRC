@@ -16,10 +16,10 @@ THEMES = [
 # User CFG Classes  #
 # ----------------- #
 class userConfig():
-    def __init__(self):
+    def __init__(self, configdir='cfg/login.ini'):
         self.username = ''
         self.password = ''
-        self.configdir = f'cfg/login.ini'
+        self.configdir = configdir
         self.config = ConfigParser()
 
         if not os.path.exists(self.configdir):
@@ -63,6 +63,19 @@ class userConfig():
             self.config.write(configfile)
         self.username = username
         # print(f'Set username for {self.username}')
+
+    def set_credentials(self, username, password):
+        self.config['USER'] = {'username': username, 'password': password}
+        with open(self.configdir, 'w') as configfile:
+            self.config.write(configfile)
+        self.username = username
+        self.password = password
+
+    def clear_credentials(self):
+        self.set_credentials('', '')
+
+    def has_credentials(self):
+        return bool(self.username.strip() and self.password.strip())
 
     def __str__(self):
         return f'User: {self.username}\nPassword: {self.password}'
@@ -228,11 +241,11 @@ class tourneyConfig():
 # ----------------- #
 
 class roomsConfig():
-    def __init__(self):
+    def __init__(self, configdir='cfg/recentrooms.ini', max_rooms=5):
         self.rooms = []
         # TODO: config option in settings
-        self.max_rooms = 5
-        self.configdir = f'cfg/recentrooms.ini'
+        self.max_rooms = max_rooms
+        self.configdir = configdir
         self.config = ConfigParser()
 
         if not os.path.exists(self.configdir):
