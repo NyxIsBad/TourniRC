@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from cfg import roomsConfig, userConfig
 from osu_irc.Classes.client import Client
+from osu_irc.Classes.user import User
 from osu_irc.Utils.detector import mainEventDetector
 from osu_irc.Utils.errors import EmptyPayload, PingTimeout
 from irclib import Client as TourniRCClient
@@ -59,6 +60,15 @@ class LifecycleClient(Client):
         self.events.append('reconnect')
 
 
+class QuitClient(Client):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.quit_events = []
+
+    async def onMemberQuit(self, user, reason):
+        self.quit_events.append((user.name, reason))
+
+
 class ReconnectTests(unittest.IsolatedAsyncioTestCase):
     async def test_empty_read_is_a_reconnectable_empty_payload(self):
         client = Client(Loop=asyncio.get_running_loop(), token='token', nickname='name')
@@ -83,6 +93,22 @@ class ReconnectTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(['ready'], client.events)
         self.assertTrue(await mainEventDetector(client, ready))
         self.assertEqual(['ready', 'reconnect', 'ready'], client.events)
+
+    async def test_global_quit_for_unknown_user_is_ignored(self):
+        client = QuitClient(Loop=asyncio.get_running_loop(), token='token', nickname='name')
+        self.assertTrue(await mainEventDetector(client, ':Unrelated!cho@ppy.sh QUIT :quit'))
+        await asyncio.sleep(0)
+        self.assertEqual([], client.quit_events)
+
+    async def test_quit_for_tracked_user_is_emitted_and_removed(self):
+        client = QuitClient(Loop=asyncio.get_running_loop(), token='token', nickname='name')
+        user = User(None)
+        user._name = 'TrackedUser'
+        client.users[user.name] = user
+        self.assertTrue(await mainEventDetector(client, ':TrackedUser!cho@ppy.sh QUIT :quit'))
+        await asyncio.sleep(0)
+        self.assertEqual([('TrackedUser', 'quit')], client.quit_events)
+        self.assertNotIn('TrackedUser', client.users)
 
     async def test_backoff_is_capped(self):
         client = Client(Loop=asyncio.get_running_loop(), token='token', nickname='name')
@@ -163,6 +189,28 @@ class UserConfigTests(unittest.TestCase):
         self.assertEqual('[REDACTED]', sanitized['nested']['token'])
         self.assertEqual('PASS [REDACTED]', sanitized['raw'])
 
+    def test_recent_rooms_are_filtered_limited_and_case_insensitive(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'recentrooms.ini'
+            config = roomsConfig(str(path), max_rooms=2)
+            config.add_room('BanchoBot')
+            config.add_room('#MP_One')
+            config.add_room('#mp_one')
+            config.add_room('#mp_two')
+            config.add_room('#mp_three')
+            self.assertEqual(['#mp_two', '#mp_three'], config.rooms)
+            config.remove_room('#MP_TWO')
+            self.assertEqual(['#mp_three'], config.rooms)
+            self.assertEqual(['#mp_three'], roomsConfig(str(path), max_rooms=2).rooms)
+
+    def test_chat_template_uses_dom_nodes_for_untrusted_message_data(self):
+        template = (Path(__file__).parents[1] / 'templates' / 'chat.html').read_text(encoding='utf-8')
+        self.assertIn('appendMessageContent(content_element, content)', template)
+        self.assertIn('user_element.textContent = `${user}:`', template)
+        self.assertNotIn('${urlify(content)}', template)
+        self.assertNotIn('aria-label="${data.channel}"', template)
+        self.assertIn('message_list.length > 0', template)
+
 
 class UiSessionTests(unittest.TestCase):
     def setUp(self):
@@ -215,6 +263,49 @@ class UiSessionTests(unittest.TestCase):
         received = self.client.get_received()
         self.assertTrue(any(event['name'] == 'notif' for event in received))
         self.assertFalse(any(event['name'] == 'bounce_send_msg' for event in received))
+
+    def test_chat_identity_is_case_insensitive(self):
+        with patch.object(self.ui, 'emit'):
+            self.ui.chats.add_chat('#MP_123', 1)
+            self.ui.chats.add_chat('#mp_123', 1)
+            self.ui.chats.set_current_chat('#Mp_123')
+        self.assertEqual(1, self.ui.chats.chat_count)
+        self.assertEqual('#MP_123', self.ui.chats.current_chat)
+        self.assertIs(
+            self.ui.chats.get_chat('#mp_123'),
+            self.ui.chats.get_chat('#MP_123')
+        )
+
+    def test_malformed_socket_payloads_are_ignored(self):
+        malformed_events = [
+            ('theme', None),
+            ('nickname', {}),
+            ('tab_open', {'channel': '#mp_1'}),
+            ('send_msg', None),
+            ('recv_msg', {'user_name': 'BanchoBot'}),
+            ('tab_swap', {}),
+            ('tab_close', None),
+            ('irc_state', {'state': 'invented'}),
+            ('set_timer', {}),
+            ('set_match_timer', None),
+            ('change_alias', {'channel': '#missing'})
+        ]
+        for name, payload in malformed_events:
+            with self.subTest(name=name):
+                self.client.emit(name, payload)
+
+    def test_irc_bridge_rejects_malformed_commands(self):
+        sio = FakeSocketIO({})
+        client = TourniRCClient(
+            Loop=asyncio.new_event_loop(), token='token', nickname='name',
+            logger=__import__('logging').getLogger('test'), sio=sio
+        )
+        try:
+            client.send_from_ui(None)
+            client.remove_chat(None)
+            client.request_channel(None)
+        finally:
+            client.Loop.close()
 
 
 if __name__ == '__main__':

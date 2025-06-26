@@ -23,32 +23,3 @@ ReAction:"re.Pattern" = re.compile(r"\x01{1}ACTION (.+?)\x01{1}")
 ReUserName:"re.Pattern" = re.compile(r"(?:@|;| |^):(\S*?)!cho@ppy.sh[; ]")
 ReRoomName:"re.Pattern" = re.compile(r"[@; ][A-Z]+ :?(#?\S+?)(?:[; ]|$)")
 ReContent:"re.Pattern" = re.compile(r"[@; ][A-Z]+ #?\S+? :(.+)(?:[; ]|$)")
-
-# Tournament Client 
-ReCreateMatch = re.compile(r"Created the tournament match https:\/\/osu.ppy.sh\/mp\/([0-9]+)\s(.+)")
-ReSlot = re.compile(r"Slot.*https:\/\/osu.ppy.sh\/u\/[0-9]+\s*([0-9A-z ]+)\s*\[.*Team (.+)\]")
-ReJoinSlot = re.compile(r"([0-9A-z ]+) joined in slot [0-9]+ for team ([A-z]+).")
-ReChangeTeam = re.compile(r"([0-9A-z ]+) changed to ([A-z]+)")
-
-# TODO: Have to split this later
-"""
-17:56:56
-HijiriS:
-!mp set 2
-17:56:57
-BanchoBot:
-Changed match settings to TeamVs
-17:57:12
-HijiriS:
-!mp set 2 3
-17:57:14
-BanchoBot:
-Changed match settings to TeamVs, ScoreV2
-17:57:16
-HijiriS:
-!mp set 2 3 7
-17:57:17
-BanchoBot:
-Changed match settings to 7 slots, TeamVs, ScoreV2
-"""
-ReSetMatch = re.compile(r"Changed match settings to (.*)")

@@ -304,20 +304,25 @@
             element.textContent = formatted_time;
         });
     }
-    function urlify(text) {
-        // Match URLs and [url text] patterns
-        var urlRegex = /(https?:\/\/[^\s]+)|\[(https?:\/\/[^\s]+)\s+([^\]]+)\]/g;
-        
-        return text.replace(urlRegex, function(match, url, bracketUrl, bracketText) {
-            if (url) {
-                // Plain URL
-                return '<a class="link text-accent" href="' + url + '" target="_blank" rel="noopener noreferrer">' + url + '</a>';
-            } else if (bracketUrl && bracketText) {
-                // [url text] pattern
-                return '<a class="link text-accent" href="' + bracketUrl + '" target="_blank" rel="noopener noreferrer">' + bracketText + '</a>';
-            }
-            return match;
-        });
+    function appendMessageContent(container, text) {
+        // add links without trusting message html
+        // match urls and [url text] patterns
+        const urlRegex = /(https?:\/\/[^\s]+)|\[(https?:\/\/[^\s]+)\s+([^\]]+)\]/g;
+        let position = 0;
+        let match;
+        while ((match = urlRegex.exec(String(text))) !== null) {
+            container.appendChild(document.createTextNode(String(text).slice(position, match.index)));
+            const link = document.createElement('a');
+            link.classList.add('link', 'text-accent');
+            link.href = match[1] || match[2];
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            // plain urls use themselves, brackets use their label
+            link.textContent = match[1] || match[3];
+            container.appendChild(link);
+            position = urlRegex.lastIndex;
+        }
+        container.appendChild(document.createTextNode(String(text).slice(position)));
     }
     function getUsernameMessages(username) {
         const messages = document.getElementById('messages');
@@ -363,11 +368,25 @@
         if (user == 'BanchoBot') {
             team_class = 'text-green-500';
         }
-        message_element.innerHTML = `
-            <time class="time mr-1 whitespace-nowrap" data-time="${time_obj.toISOString()}">${time_str}</time>
-            <a href="https://osu.ppy.sh/users/${user}" target="_blank" rel="noopener noreferrer" class="font-semibold mr-1 whitespace-nowrap ${team_class}">${user}:</a>
-            <span class="flex-1 overflow-hidden text-ellipsis whitespace-pre-wrap">${urlify(content)}</span>
-        `;
+        const time_element = document.createElement('time');
+        time_element.classList.add('time', 'mr-1', 'whitespace-nowrap');
+        time_element.dataset.time = time_obj.toISOString();
+        time_element.textContent = time_str;
+        message_element.appendChild(time_element);
+
+        const user_element = document.createElement('a');
+        user_element.href = `https://osu.ppy.sh/users/${encodeURIComponent(user)}`;
+        user_element.target = '_blank';
+        user_element.rel = 'noopener noreferrer';
+        user_element.classList.add('font-semibold', 'mr-1', 'whitespace-nowrap');
+        if (team_class) user_element.classList.add(team_class);
+        user_element.textContent = `${user}:`;
+        message_element.appendChild(user_element);
+
+        const content_element = document.createElement('span');
+        content_element.classList.add('flex-1', 'overflow-hidden', 'text-ellipsis', 'whitespace-pre-wrap');
+        appendMessageContent(content_element, content);
+        message_element.appendChild(content_element);
 
         if (!keepTimestamps) {
             message_element.querySelector('.time').classList.add('hidden');
@@ -389,7 +408,10 @@
         // If this room has not been added to the recent rooms list, add it
         const recent_rooms = document.getElementById('recent-rooms');
         room_list.forEach(channel => {
-            if (!recent_rooms.querySelector(`div[aria-label="${channel}"]`)) {
+            const exists = Array.from(recent_rooms.children).some(
+                room => room.getAttribute('aria-label').toLowerCase() === channel.toLowerCase()
+            );
+            if (!exists) {
                 debug_func(channel);
                 const recent_room = document.createElement('div');
                 recent_room.classList.add('flex');
@@ -420,6 +442,12 @@
                 element.classList.add('text-blue-500');
             }
         });
+    }
+    function findTab(channel) {
+        // channel names should not go inside selectors
+        return Array.from(document.querySelectorAll('input[name="tab"]')).find(
+            tab => tab.getAttribute('aria-label').toLowerCase() === channel.toLowerCase()
+        );
     }
     // Socket.io/communication
     document.addEventListener('DOMContentLoaded', () => {
@@ -476,18 +504,24 @@
                 open_first = true;
             }
             // Prevent opening the same tab twice
-            if (tab_container.querySelector(`input[aria-label="${data.channel}"]`)) {
+            if (findTab(data.channel)) {
                 return;
             }
             // Create a new tab
             const new_tab = document.createElement('div');
             new_tab.classList.add('tab-container', 'flex');
-            new_tab.innerHTML = `
-                <input type="radio" name="tab" role="tab" class="tab" aria-label="${data.channel}"></input>
-                <button class="tab-close mr-1" aria-label="Close ${data.channel}">
-                    &times;
-                </button>
-            `;
+            const tab_input = document.createElement('input');
+            tab_input.type = 'radio';
+            tab_input.name = 'tab';
+            tab_input.setAttribute('role', 'tab');
+            tab_input.classList.add('tab');
+            tab_input.setAttribute('aria-label', data.channel);
+            const close_button = document.createElement('button');
+            close_button.classList.add('tab-close', 'mr-1');
+            close_button.setAttribute('aria-label', `Close ${data.channel}`);
+            close_button.textContent = '×';
+            new_tab.appendChild(tab_input);
+            new_tab.appendChild(close_button);
             tab_container.appendChild(new_tab);
             // If this is the first tab, select it
             if (open_first) {
@@ -497,11 +531,11 @@
             setRooms([data.channel]);
         })
         socket.on('restore_tab', function(data) {
-            const tab = document.querySelector(`input[aria-label="${data.channel}"]`);
+            const tab = findTab(data.channel);
             if (tab) tab.click();
         });
         socket.on('cmd_part', function(data) {
-            const tab = document.querySelector(`input[aria-label="${data.channel}"]`);
+            const tab = findTab(data.channel);
             // Click the close button
             if (tab) {
                 tab.nextElementSibling.click();
@@ -517,9 +551,12 @@
             start_input.value = data.timer;
         });
         socket.on('cmd_savelog_response', function(data) {
+            if (!data || !Array.isArray(data.messages) || typeof data.channel !== 'string') return;
             let message_list = data.messages;
             let log = `---- Chat log of ${data.channel} generated by TourniRC ----\n`;
-            log += `---- Log spans from ${formatTime(new Date(message_list[0][0]))} to ${formatTime(new Date(message_list[message_list.length-1][0]))} in ${useUTC ? 'UTC Time' : 'Local Time'} ----\n`;
+            if (message_list.length > 0) {
+                log += `---- Log spans from ${formatTime(new Date(message_list[0][0]))} to ${formatTime(new Date(message_list[message_list.length-1][0]))} in ${useUTC ? 'UTC Time' : 'Local Time'} ----\n`;
+            }
             log += `---- Log contains ${message_list.length} messages ----\n`;
             log += `---- Begin Log ----\n`;
             message_list.forEach(message => {
@@ -531,11 +568,15 @@
             const blob = new Blob([log], { type: 'text/plain' });
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
-            link.download = `TourniRC_${formatTimeFile(new Date(message_list[0][0]))}_${data.channel}.txt`;
+            // empty logs use the current time
+            const log_time = message_list.length > 0 ? new Date(message_list[0][0]) : new Date();
+            const safe_channel = data.channel.replace(/[^a-z0-9_-]/gi, '_');
+            link.download = `TourniRC_${formatTimeFile(log_time)}_${safe_channel}.txt`;
 
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
         });
         // TO server
         // Send message to server

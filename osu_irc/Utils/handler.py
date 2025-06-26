@@ -130,22 +130,22 @@ async def handleQuit(cls:"Client", payload:str) -> bool:
 
 	QuitingUser:User = cls.users.get(user_name, None)
 	if not QuitingUser:
-		QuitingUser = User(None)
-		QuitingUser._name = user_name
-	else:
-		# remove quiting user from all channel.chatters dict's
-		for channel_name in QuitingUser.found_in:
-			Chan:Channel = cls.channels.get(channel_name, None)
-			if not Chan: continue
-			Chan.chatters.pop(QuitingUser.name, None)
-			Chan._owner.discard(QuitingUser.name)
-			Chan._admin.discard(QuitingUser.name)
-			Chan._operator.discard(QuitingUser.name)
-			Chan._helper.discard(QuitingUser.name)
-			Chan._voiced.discard(QuitingUser.name)
+		# ignore users outside our joined channels
+		return True
 
-		# and also remove it from clients user storage, which then should delete user object completely from memory
-		cls.users.pop(QuitingUser.name, None)
+	# remove quiting user from all channel.chatters dict's
+	for channel_name in QuitingUser.found_in:
+		Chan:Channel = cls.channels.get(channel_name, None)
+		if not Chan: continue
+		Chan.chatters.pop(QuitingUser.name, None)
+		Chan._owner.discard(QuitingUser.name)
+		Chan._admin.discard(QuitingUser.name)
+		Chan._operator.discard(QuitingUser.name)
+		Chan._helper.discard(QuitingUser.name)
+		Chan._voiced.discard(QuitingUser.name)
+
+	# and also remove it from clients user storage, which then should delete user object completely from memory
+	cls.users.pop(QuitingUser.name, None)
 
 	Log.debug(f"Client launching: Client.onMemberQuit: {str(vars(QuitingUser))} {reason}")
 	asyncio.ensure_future(cls.onMemberQuit(QuitingUser, reason))

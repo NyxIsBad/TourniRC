@@ -9,6 +9,7 @@ import time
 import osu_irc
 from utils import *
 from eventlog import EventLog
+from tournament_parser import parse_tournament_message
 
 app = Flask(__name__)
 socketio = SocketIO(app)
@@ -33,6 +34,17 @@ UI_EVENTS = EventLog('ui', 'logs/ui-events.log')
 
 def log_socket_event(name: str, data: Any = None) -> None:
     UI_EVENTS.write('socket_event', name=name, data=data)
+
+
+def valid_payload(name: str, data: Any, required: Dict[str, Any]) -> bool:
+    # ignore bad socket data instead of killing the handler
+    if not isinstance(data, dict) or any(
+        key not in data or not isinstance(data[key], expected_type)
+        for key, expected_type in required.items()
+    ):
+        UI_EVENTS.write('invalid_socket_payload', name=name, data=data)
+        return False
+    return True
 
 TEAM_RED = 1
 TEAM_BLUE = 2
@@ -199,8 +211,7 @@ class Chat():
         """
         Add a message to the chat channel.
         """
-        # Regex for team changes here (must be issued by BanchoBot)
-        if message['room_name'] == self.channel_name:
+        if message['room_name'].casefold() == self.channel_name.casefold():
             self.messages.append([message['time_recv']*1000, message['user_name'], message['content']])
         else:
             create_notif(f"Something has gone terribly wrong, code MSG-001", notif_type=NOTIF_TYPE_ERROR)
@@ -273,7 +284,10 @@ class Chats():
         Add a chat channel to the chat list.
         Called when a message comes in that isn't in the chat list or when a new chat is opened (query/add/etc)
         """
-        if case_insensitive_get(self.chats, channel_name):
+        if not isinstance(channel_name, str) or not channel_name.strip():
+            raise ValueError("Channel name must be a non-empty string.")
+        channel_name = channel_name.strip()
+        if self.resolve_channel(channel_name):
             return
         self.chats[channel_name] = Chat(channel_name, channel_type, **kwargs)
 
@@ -288,10 +302,11 @@ class Chats():
         """
         Remove a chat channel from the chat list. Bounces the tab close event to the IRC client so it can PART
         """
-        if channel_name in self.chats:
-            removed_chat = self.chats.pop(channel_name)
+        canonical_name = self.resolve_channel(channel_name)
+        if canonical_name:
+            removed_chat = self.chats.pop(canonical_name)
             socketio.emit('bounce_tab_close', {
-                'channel': channel_name,
+                'channel': canonical_name,
                 'type': removed_chat.type
             })
             if self.chat_count == 0:
@@ -304,7 +319,13 @@ class Chats():
         """
         Get a chat channel from the chat list.
         """
-        return self.chats.get(channel_name, None)
+        canonical_name = self.resolve_channel(channel_name)
+        return self.chats.get(canonical_name) if canonical_name else None
+
+    def resolve_channel(self, channel_name: str) -> Optional[str]:
+        if not isinstance(channel_name, str):
+            return None
+        return case_insensitive_get(self.chats, channel_name)
     
     def add_message(self, message: Dict[str, Any]) -> None:
         """
@@ -312,8 +333,9 @@ class Chats():
         Bounces it to the UI client if the chat is currently open.
         Also bounces the tab open event if the chat is not currently open.
         """
-        if case_insensitive_get(self.chats, message['room_name']):
-            message['room_name'] = case_insensitive_get(self.chats, message['room_name'])
+        canonical_name = self.resolve_channel(message['room_name'])
+        if canonical_name:
+            message['room_name'] = canonical_name
         
         if message['room_name'] not in self.chats:
             self.add_chat(message['room_name'], message['channel_type'])
@@ -335,10 +357,16 @@ class Chats():
         """
         Set the current chat channel.
         """
-        self.current_chat = channel_name
+        canonical_name = self.resolve_channel(channel_name)
+        if not canonical_name:
+            raise ValueError(f"Channel {channel_name} not found.")
+        self.current_chat = canonical_name
     
     def get_messages(self, channel_name: str) -> List[List]:
-        return self.chats[channel_name].messages
+        chat = self.get_chat(channel_name)
+        if not chat:
+            raise ValueError(f"Channel {channel_name} not found.")
+        return chat.messages
 
     @property
     def get_current_chat(self) -> Chat:
@@ -406,6 +434,8 @@ def settings():
 @socketio.on('theme')
 def set_theme(data: Dict[str, Any]):
     log_socket_event('theme', data)
+    if not valid_payload('theme', data, {}):
+        return
     # default to dark theme
     theme: str = data.get('theme', 'dark')
     if theme in THEMES:
@@ -438,6 +468,8 @@ def handle_browser_ready():
 @socketio.on('nickname')
 def handle_nickname(data: Dict[str, Any]):
     log_socket_event('nickname', data)
+    if not valid_payload('nickname', data, {'nickname': str}) or not data['nickname'].strip():
+        return
     chats.username = data['nickname']
 
 @socketio.on('disconnect')
@@ -448,11 +480,20 @@ def handle_disconnect():
 @socketio.on('tab_open')
 def handle_tab_open(data: Dict[str, Any]):
     log_socket_event('tab_open', data)
+    if not valid_payload('tab_open', data, {'channel': str, 'type': int}):
+        return
+    if not data['channel'].strip() or data['type'] not in {
+        osu_irc.CHANNEL_TYPE_ROOM, osu_irc.CHANNEL_TYPE_PM
+    }:
+        UI_EVENTS.write('invalid_socket_payload', name='tab_open', data=data)
+        return
     chats.add_chat(data['channel'], data['type'])
 
 @socketio.on('send_msg')
 def handle_send_msg(data: Dict[str, Any]):
     log_socket_event('send_msg', data)
+    if not valid_payload('send_msg', data, {'content': str}):
+        return
     if connection_state['state'] != IRC_STATE_AUTHENTICATED:
         create_notif("Messages cannot be sent while disconnected.", notif_type=NOTIF_TYPE_WARNING)
         return
@@ -469,9 +510,11 @@ def handle_send_msg(data: Dict[str, Any]):
     if "channel" not in data:
         data["channel"] = chats.current_chat
     # Prevent a message send if the chat is not created yet
-    elif data["channel"] not in chats.chats:
+    elif not chats.resolve_channel(data["channel"]):
         create_notif(f"Chat {data['channel']} not found.", notif_type=NOTIF_TYPE_ERROR)
         return
+    else:
+        data['channel'] = chats.resolve_channel(data['channel'])
     # Slash commands
     if data["content"][0] == "/":
         command_parse(data["content"])
@@ -491,57 +534,62 @@ def handle_send_msg(data: Dict[str, Any]):
 @socketio.on('recv_msg')
 def handle_recv_msg(data: Dict[str, Any]):
     log_socket_event('recv_msg', data)
+    if not valid_payload('recv_msg', data, {
+        'user_name': str,
+        'room_name': str,
+        'content': str,
+        'channel_type': int,
+        'time_recv': (int, float)
+    }):
+        return
+    if data['channel_type'] not in {osu_irc.CHANNEL_TYPE_ROOM, osu_irc.CHANNEL_TYPE_PM}:
+        UI_EVENTS.write('invalid_socket_payload', name='recv_msg', data=data)
+        return
     if data["user_name"].lower() in debug_block_list:
         return
     if data["channel_type"] == osu_irc.CHANNEL_TYPE_ROOM:
         data["room_name"] = f"#{data['room_name']}"
-    if str(data["room_name"]).lower() == chats.username.lower():
+    if chats.username and data["room_name"].casefold() == chats.username.casefold():
         data["room_name"] = data["user_name"]
     chats.add_message(data)
-    # TODO: implement blocking, sound alerts, any required regex here
-    
-    if data["user_name"].lower() == "banchobot":
-        create = osu_irc.ReCreateMatch.match(data["content"])
-        if create:
-            start_chat(f"#mp_{create.group(1)}", osu_irc.CHANNEL_TYPE_ROOM)
+    # blocking, sounds, and tournament regex happen here
+    # regex for team changes here (must be issued by banchobot)
+    event = parse_tournament_message(data["user_name"], data["content"])
+    if event:
+        if event.kind == 'create_match':
+            # TODO: detect a tournament acronym here
+            start_chat(f"#mp_{event.match_id}", osu_irc.CHANNEL_TYPE_ROOM)
             return
-        # TODO: detect a tournament acronym here
-        slot = osu_irc.ReSlot.match(data["content"])
-        if slot:
-            username = slot.group(1).strip().replace(" ", "_")
-            team = team_map.get(slot.group(2).strip().lower(), TEAM_NONE)
-            chats.get_chat(data['room_name']).team_change(username, team)
-            return
-        join = osu_irc.ReJoinSlot.match(data["content"])
-        if join:
-            username = join.group(1).strip().replace(" ", "_")
-            team = team_map.get(join.group(2).strip().lower(), TEAM_NONE)
-            chats.get_chat(data['room_name']).team_change(username, team)
-            return 
-        change = osu_irc.ReChangeTeam.match(data["content"])
-        if change:
-            username = change.group(1).strip().strip().replace(" ", "_")
-            team = team_map.get(change.group(2).strip().lower(), TEAM_NONE)
-            chats.get_chat(data['room_name']).team_change(username, team)
+        if event.kind in {'slot', 'join_slot', 'change_team'}:
+            team = team_map[event.team]
+            chats.get_chat(data['room_name']).team_change(event.username, team)
             return
 
 @socketio.on('tab_swap')
 def handle_tab_swap(data: Dict[str, Any]):
     log_socket_event('tab_swap', data)
+    if not valid_payload('tab_swap', data, {'channel': str}):
+        return
+    if not chats.get_chat(data['channel']):
+        UI_EVENTS.write('invalid_socket_payload', name='tab_swap', data=data)
+        return
     chats.set_current_chat(data['channel'])
-    messages = chats.get_messages(data['channel'])
+    channel = chats.current_chat
+    messages = chats.get_messages(channel)
     emit('tab_swap_response', {
-        'alias': chats.get_chat(data['channel']).alias,
+        'alias': chats.get_chat(channel).alias,
         'messages': messages,
-        'timer': chats.get_chat(data['channel']).timer,
-        'match_timer': chats.get_chat(data['channel']).match_timer,
-        'teams': json.dumps(chats.get_chat(data['channel']).teams),
+        'timer': chats.get_chat(channel).timer,
+        'match_timer': chats.get_chat(channel).match_timer,
+        'teams': json.dumps(chats.get_chat(channel).teams),
         'recent_rooms': rms_cfg.rooms
     })
 
 @socketio.on('tab_close')
 def handle_tab_close(data: Dict[str, Any]):
     log_socket_event('tab_close', data)
+    if not valid_payload('tab_close', data, {'channel': str}) or not chats.get_chat(data['channel']):
+        return
     chats.remove_chat(data['channel'])
 
 # ---------------------
@@ -552,6 +600,9 @@ def handle_login_submit(data: Dict[str, Any]):
     # try to login with pending credentials
     log_socket_event('login_submit', data)
     global pending_credentials
+    if not valid_payload('login_submit', data, {}):
+        emit('login_result', {'ok': False, 'error': 'Invalid login request.'})
+        return
     username = str(data.get('username', '')).strip()
     password = str(data.get('password', '')).strip()
     if not username or not password:
@@ -588,6 +639,11 @@ def handle_logout():
 def handle_irc_state(data: Dict[str, Any]):
     log_socket_event('irc_state', data)
     global pending_credentials
+    if not valid_payload('irc_state', data, {'state': str}) or data['state'] not in {
+        IRC_STATE_CONNECTING, IRC_STATE_AUTHENTICATED, IRC_STATE_RECONNECTING,
+        IRC_STATE_AUTH_FAILED, IRC_STATE_LOGGED_OUT
+    }:
+        return
     if data.get('state') == IRC_STATE_AUTHENTICATED and pending_credentials:
         user_cfg.set_credentials(*pending_credentials)
         pending_credentials = None
@@ -605,16 +661,24 @@ def handle_session_state():
 @socketio.on('set_timer')
 def handle_set_timer(data: Dict[str, Any]):
     log_socket_event('set_timer', data)
+    if not valid_payload('set_timer', data, {'timer': (int, str)}) or not chats.get_current_chat:
+        return
     chats.get_current_chat.set_timer(data['timer'])
 
 @socketio.on('set_match_timer')
 def handle_set_match_timer(data: Dict[str, Any]):
     log_socket_event('set_match_timer', data)
+    if not valid_payload('set_match_timer', data, {'timer': (int, str)}) or not chats.get_current_chat:
+        return
     chats.get_current_chat.set_match_timer(data['timer'])
 
 @socketio.on('change_alias')
 def change_alias(data: Dict[str, Any]):
     log_socket_event('change_alias', data)
+    if not valid_payload('change_alias', data, {'channel': str, 'alias': str}):
+        return
+    if not chats.get_chat(data['channel']):
+        return
     chats.get_chat(data['channel']).set_alias(data['alias'])
 
 @socketio.on('debug')

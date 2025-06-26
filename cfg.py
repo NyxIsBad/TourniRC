@@ -257,44 +257,58 @@ class roomsConfig():
         self.config['ROOMS'] = {
             'rooms': ''
         }
+        self._write()
+
+    def load_configs(self):
+        self.config.read(self.configdir)
+        # only load rooms, no pms or empty entries
+        raw_rooms = self.config.get('ROOMS', 'rooms', fallback='').split(',')
+        rooms_by_key = {}
+        for room_name in raw_rooms:
+            room_name = room_name.strip()
+            if not room_name.startswith('#'):
+                continue
+            rooms_by_key.pop(room_name.casefold(), None)
+            rooms_by_key[room_name.casefold()] = room_name
+        # only keep the last max_rooms rooms
+        self.rooms = list(rooms_by_key.values())[-self.max_rooms:]
+        if not self.config.has_section('ROOMS'):
+            self.config.add_section('ROOMS')
+        self._write()
+
+    def _write(self):
+        self.config.set('ROOMS', 'rooms', ','.join(self.rooms))
         with open(self.configdir, 'w') as configfile:
             self.config.write(configfile)
-
-    def load_configs(self): 
-        self.config.read(self.configdir)
-        # only load the last max_rooms rooms
-        self.rooms = self.config['ROOMS']['rooms'].split(',')
-        self.rooms = self.rooms[-self.max_rooms:]
 
     def clear_rooms(self):
-        self.config['ROOMS']['rooms'] = ''
-        with open(self.configdir, 'w') as configfile:
-            self.config.write(configfile)
         self.rooms = []
+        self._write()
 
     def add_room(self, room_name):
-        # don't add empty or BanchoBot
-        if room_name == '' or 'BanchoBot': return
-        if room_name in self.rooms:
+        # don't add empty strings or pms
+        if not isinstance(room_name, str):
+            return
+        room_name = room_name.strip()
+        if not room_name.startswith('#'):
+            return
+        existing = next((room for room in self.rooms if room.casefold() == room_name.casefold()), None)
+        if existing:
             # move to top of list
-            self.rooms.remove(room_name)
-            self.rooms.append(room_name)
-        else:
-            # maximum list length
-            if len(self.rooms) >= self.max_rooms:
-                self.rooms.pop(0)
-            self.rooms.append(room_name)
-        self.config['ROOMS']['rooms'] = ','.join(self.rooms)
-        with open(self.configdir, 'w') as configfile:
-            self.config.write(configfile)
+            self.rooms.remove(existing)
+        self.rooms.append(room_name)
+        # maximum list length
+        self.rooms = self.rooms[-self.max_rooms:]
+        self._write()
 
     def remove_room(self, room_name):
-        if room_name not in self.rooms:
+        if not isinstance(room_name, str):
             return
-        self.rooms.remove(room_name)
-        self.config['ROOMS']['rooms'] = ','.join(self.rooms)
-        with open(self.configdir, 'w') as configfile:
-            self.config.write(configfile)
+        existing = next((room for room in self.rooms if room.casefold() == room_name.casefold()), None)
+        if not existing:
+            return
+        self.rooms.remove(existing)
+        self._write()
 
     def __str__(self):
         return f'Rooms: {self.rooms}'

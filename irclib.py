@@ -79,6 +79,9 @@ class Client(osu_irc.Client):
         IRC_EVENTS.write('reconnected')
 
     async def onRaw(self, raw: bytes):
+        # ignore global quits here; tracked quits get parsed logs
+        if b' QUIT :' in raw:
+            return
         IRC_EVENTS.write('irc_received', raw=raw)
 
     async def onSend(self, raw: bytes):
@@ -111,6 +114,14 @@ class Client(osu_irc.Client):
 
     def send_from_ui(self, data: Dict[str, Any]):
         IRC_EVENTS.write('socket_command', name='bounce_send_msg', data=data)
+        if not isinstance(data, dict) or not isinstance(data.get('content'), str):
+            IRC_EVENTS.write('invalid_socket_command', name='bounce_send_msg', data=data)
+            return
+        if not isinstance(data.get('channel'), str) or data.get('type') not in {
+            osu_irc.CHANNEL_TYPE_PM, osu_irc.CHANNEL_TYPE_ROOM
+        }:
+            IRC_EVENTS.write('invalid_socket_command', name='bounce_send_msg', data=data)
+            return
         if not self.auth_success or not self.running:
             self.emit_state(
                 IRC_STATE_RECONNECTING,
@@ -130,7 +141,14 @@ class Client(osu_irc.Client):
 
     def remove_chat(self, data: Dict[str, Any]):
         IRC_EVENTS.write('socket_command', name='bounce_tab_close', data=data)
-        if data.get('type') != osu_irc.CHANNEL_TYPE_ROOM or not self.auth_success:
+        if not isinstance(data, dict):
+            IRC_EVENTS.write('invalid_socket_command', name='bounce_tab_close', data=data)
+            return
+        if (
+            data.get('type') != osu_irc.CHANNEL_TYPE_ROOM
+            or not isinstance(data.get('channel'), str)
+            or not self.auth_success
+        ):
             return
         self.Loop.call_soon_threadsafe(
             lambda: self.Loop.create_task(self.partChannel(data["channel"]))
@@ -138,6 +156,14 @@ class Client(osu_irc.Client):
 
     def request_channel(self, data: Dict[str, Any]):
         IRC_EVENTS.write('socket_command', name='cmd_req_ch', data=data)
+        if not isinstance(data, dict):
+            IRC_EVENTS.write('invalid_socket_command', name='cmd_req_ch', data=data)
+            return
+        if not isinstance(data.get('channel'), str) or data.get('type') not in {
+            osu_irc.CHANNEL_TYPE_PM, osu_irc.CHANNEL_TYPE_ROOM
+        }:
+            IRC_EVENTS.write('invalid_socket_command', name='cmd_req_ch', data=data)
+            return
         if not self.auth_success:
             return
         if data['type'] == osu_irc.CHANNEL_TYPE_PM:

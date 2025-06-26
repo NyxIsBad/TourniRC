@@ -247,12 +247,12 @@ class Client(object):
 		# listen to osu
 		while self.running:
 
-			Log.debug("Client awaiting response...")
 			try:
 				payload:bytes = await asyncio.wait_for(self.ConnectionReader.readline(), timeout=self.read_timeout)
 			except asyncio.TimeoutError as E:
 				raise PingTimeout() from E
-			Log.debug(f"Client received {len(payload)} bytes of data.")
+			if b' QUIT :' not in payload:
+				Log.debug(f"Client received {len(payload)} bytes of data.")
 			asyncio.ensure_future(self.onRaw(payload))
 			payload:str = payload.decode('UTF-8').strip('\n').strip('\r')
 
@@ -273,10 +273,6 @@ class Client(object):
 				Log.debug("Client got unknown response, launching: Client.onUnknown")
 				asyncio.ensure_future(self.onUnknown(payload))
 				continue
-
-			# TODO: A potential to implement new feature regex here;
-			# sound alerts should be implemented at the client level and so should
-			# blocking ideally but doing it here would be strictly *faster*.
 
 	async def sendContent(self, content: bytes or str, ignore_limit:bool=False) -> None:
 		"""
