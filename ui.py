@@ -1,6 +1,6 @@
 from flask import Flask, render_template, redirect, url_for
 from flask_socketio import SocketIO, emit
-from cfg import *
+from cfg import THEMES, roomsConfig, uiConfig, userConfig
 
 import json
 from typing import *
@@ -9,7 +9,7 @@ import time
 import osu_irc
 from utils import *
 from eventlog import EventLog
-from tournament_parser import parse_tournament_message
+from match_parser import parse_match_message
 
 app = Flask(__name__)
 socketio = SocketIO(app)
@@ -552,12 +552,11 @@ def handle_recv_msg(data: Dict[str, Any]):
     if chats.username and data["room_name"].casefold() == chats.username.casefold():
         data["room_name"] = data["user_name"]
     chats.add_message(data)
-    # blocking, sounds, and tournament regex happen here
+    # blocking, sounds, and match regex happen here
     # regex for team changes here (must be issued by banchobot)
-    event = parse_tournament_message(data["user_name"], data["content"])
+    event = parse_match_message(data["user_name"], data["content"])
     if event:
         if event.kind == 'create_match':
-            # TODO: detect a tournament acronym here
             start_chat(f"#mp_{event.match_id}", osu_irc.CHANNEL_TYPE_ROOM)
             return
         if event.kind in {'slot', 'join_slot', 'change_team'}:

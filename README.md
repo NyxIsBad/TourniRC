@@ -47,4 +47,4 @@ IRC passwords and tokens are automatically replaced with `[REDACTED]`. Chat mess
 
 ## Message Delivery During Connection Loss
 
-irc is shit and does not have acks for message sends. thus, TourniRC does not automatically resend messages after reconnecting. This is intentional: replaying referee commands such as abort, timer, or match-control commands can duplicate. I added a warning but there is a stale window between when you can dc and when things are back, so if you get a reconnect window, you might have lost some state. 
+irc is shit and does not have acks for message sends. thus, TourniRC does not automatically resend messages after reconnecting. This is intentional: replaying referee commands such as abort, timer, or match-control commands can duplicate. I added a warning but there is a stale window between when you can dc and when things are back, so if you get a reconnect window, you might have lost some state.

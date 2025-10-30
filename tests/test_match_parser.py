@@ -1,9 +1,9 @@
 import unittest
 
-from tournament_parser import parse_banchobot_message, parse_tournament_message
+from match_parser import parse_banchobot_message, parse_match_message
 
 
-class TournamentParserTests(unittest.TestCase):
+class MatchParserTests(unittest.TestCase):
     def test_team_username_preserves_punctuation_and_normalizes_spaces(self):
         event = parse_banchobot_message('-xxx Rumia- joined in slot 2 for team red.')
         self.assertIsNotNone(event)
@@ -28,10 +28,10 @@ class TournamentParserTests(unittest.TestCase):
             'prefix Created the tournament match https://osu.ppy.sh/mp/123456 Tourney'
         ))
 
-    def test_player_message_cannot_change_tournament_state(self):
+    def test_player_message_cannot_change_match_state(self):
         content = 'Victim changed to blue'
-        self.assertIsNone(parse_tournament_message('MaliciousPlayer', content))
-        self.assertEqual('change_team', parse_tournament_message('bAnChObOt', content).kind)
+        self.assertIsNone(parse_match_message('MaliciousPlayer', content))
+        self.assertEqual('change_team', parse_match_message('bAnChObOt', content).kind)
 
     def test_team_name_must_be_known_and_message_must_end(self):
         self.assertIsNone(parse_banchobot_message('Player changed to spectators'))

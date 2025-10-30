@@ -10,7 +10,7 @@ VALID_TEAMS = {TEAM_NONE, TEAM_RED, TEAM_BLUE}
 
 
 @dataclass(frozen=True)
-class TournamentEvent:
+class MatchEvent:
     kind: str
     username: Optional[str] = None
     team: Optional[str] = None
@@ -46,14 +46,14 @@ def normalize_username(username: str) -> str:
     return username.strip().replace(' ', '_')
 
 
-def parse_banchobot_message(content: str) -> Optional[TournamentEvent]:
+def parse_banchobot_message(content: str) -> Optional[MatchEvent]:
     """Parse a complete BanchoBot message without evaluating user-provided regex."""
     if not isinstance(content, str):
         return None
 
     create = CREATE_MATCH.fullmatch(content)
     if create:
-        return TournamentEvent(
+        return MatchEvent(
             kind='create_match',
             match_id=create.group('match_id'),
             match_name=create.group('match_name')
@@ -69,7 +69,7 @@ def parse_banchobot_message(content: str) -> Optional[TournamentEvent]:
             team = match.group('team').lower()
             if team not in VALID_TEAMS:
                 return None
-            return TournamentEvent(
+            return MatchEvent(
                 kind=kind,
                 username=normalize_username(match.group('username')),
                 team=team
@@ -77,13 +77,13 @@ def parse_banchobot_message(content: str) -> Optional[TournamentEvent]:
 
     match_settings = SET_MATCH.fullmatch(content)
     if match_settings:
-        return TournamentEvent(kind='set_match')
+        return MatchEvent(kind='set_match')
 
     return None
 
 
-def parse_tournament_message(user_name: str, content: str) -> Optional[TournamentEvent]:
-    """Only trusted BanchoBot messages may change tournament state."""
+def parse_match_message(user_name: str, content: str) -> Optional[MatchEvent]:
+    """Only trusted BanchoBot messages may change match state."""
     if not isinstance(user_name, str) or user_name.casefold() != 'banchobot':
         return None
     return parse_banchobot_message(content)
