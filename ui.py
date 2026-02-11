@@ -46,6 +46,12 @@ def valid_payload(name: str, data: Any, required: Dict[str, Any]) -> bool:
         return False
     return True
 
+def emit_recent_rooms() -> None:
+    emit('recent_rooms_state', {
+        'rooms': rms_cfg.rooms,
+        'max_rooms': rms_cfg.max_rooms
+    }, broadcast=True)
+
 TEAM_RED = 1
 TEAM_BLUE = 2
 TEAM_NONE = 0
@@ -89,6 +95,10 @@ def start_chat(channel_name: str, channel_type: int) -> None:
     """
     Start a chat with a channel name and type from the UI server's side.
     """
+    existing_channel = chats.resolve_channel(channel_name)
+    if existing_channel:
+        emit('restore_tab', {'channel': existing_channel}, broadcast=True)
+        return
     create_notif(f"Opening chat {channel_name}...", 5000, notif_type=NOTIF_TYPE_INFO)
     emit('cmd_req_ch', {
         'channel': channel_name,
@@ -200,6 +210,7 @@ class Chat():
         self.type = channel_type
         self.channel_name = channel_name
         self.alias = self.channel_name
+        self.unread = False
         self.messages: List[List] = []
         # TODO: implement this or delete it depending on feedback
         # 1 = red, 2 = blue, 0 = none
@@ -246,7 +257,8 @@ class Chat():
         """
         Set the alias for the chat channel.
         """
-        self.alias = alias
+        alias = alias.strip()
+        self.alias = alias if alias else self.channel_name
 
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__} channel_name='{self.channel_name}' num_messages={len(self.messages)}>"
@@ -295,8 +307,11 @@ class Chats():
         # in a bounce to here anyway
         rms_cfg.add_room(channel_name)
         emit('bounce_tab_open', {
-            'channel': channel_name
+            'channel': channel_name,
+            'alias': self.chats[channel_name].alias,
+            'unread': self.chats[channel_name].unread
         }, broadcast=True)
+        emit_recent_rooms()
 
     def remove_chat(self, channel_name: str) -> None:
         """
@@ -310,6 +325,8 @@ class Chats():
                 'type': removed_chat.type
             })
             if self.chat_count == 0:
+                self.current_chat = None
+            elif self.current_chat == canonical_name:
                 self.current_chat = None
         else:
             create_notif(f"Something has gone terribly wrong, code CHN-001", notif_type=NOTIF_TYPE_ERROR)
@@ -342,6 +359,7 @@ class Chats():
         self.chats[message['room_name']].add_message(message)
 
         if self.current_chat == message['room_name']:
+            self.chats[message['room_name']].unread = False
             emit('bounce_recv_msg', {
                 'time': message["time_recv"]*1000, # convert to ms
                 'user': message["user_name"],
@@ -349,9 +367,11 @@ class Chats():
                 'team': self.chats[message['room_name']].teams.get(message["user_name"], TEAM_NONE)
             }, broadcast=True)
         else:
-            # TODO: unread indicator
-            # This should be conditional and only sent once based on the unread flag.
-            create_notif(f"New message in {message['room_name']}", notif_type=NOTIF_TYPE_INFO)
+            chat = self.chats[message['room_name']]
+            if not chat.unread:
+                chat.unread = True
+                emit('tab_unread', {'channel': chat.channel_name}, broadcast=True)
+                create_notif(f"New message in {chat.alias}", notif_type=NOTIF_TYPE_INFO)
 
     def set_current_chat(self, channel_name: str) -> None:
         """
@@ -361,6 +381,18 @@ class Chats():
         if not canonical_name:
             raise ValueError(f"Channel {channel_name} not found.")
         self.current_chat = canonical_name
+        self.chats[canonical_name].unread = False
+
+    def reorder(self, channel_names: List[str]) -> bool:
+        if not isinstance(channel_names, list) or len(channel_names) != len(self.chats):
+            return False
+        resolved = [self.resolve_channel(channel) for channel in channel_names]
+        if any(channel is None for channel in resolved):
+            return False
+        if len({channel.casefold() for channel in resolved}) != len(self.chats):
+            return False
+        self.chats = {channel: self.chats[channel] for channel in resolved}
+        return True
     
     def get_messages(self, channel_name: str) -> List[List]:
         chat = self.get_chat(channel_name)
@@ -459,8 +491,14 @@ def handle_browser_ready():
     log_socket_event('browser_ready')
     for chat in chats.chats.values():
         emit('bounce_tab_open', {
-            'channel': chat.channel_name
+            'channel': chat.channel_name,
+            'alias': chat.alias,
+            'unread': chat.unread
         })
+    emit('recent_rooms_state', {
+        'rooms': rms_cfg.rooms,
+        'max_rooms': rms_cfg.max_rooms
+    })
     emit('connection_state', connection_state)
     if chats.current_chat:
         emit('restore_tab', {'channel': chats.current_chat})
@@ -577,11 +615,13 @@ def handle_tab_swap(data: Dict[str, Any]):
     messages = chats.get_messages(channel)
     emit('tab_swap_response', {
         'alias': chats.get_chat(channel).alias,
+        'channel': channel,
         'messages': messages,
         'timer': chats.get_chat(channel).timer,
         'match_timer': chats.get_chat(channel).match_timer,
         'teams': json.dumps(chats.get_chat(channel).teams),
-        'recent_rooms': rms_cfg.rooms
+        'recent_rooms': rms_cfg.rooms,
+        'recent_rooms_limit': rms_cfg.max_rooms
     })
 
 @socketio.on('tab_close')
@@ -590,6 +630,48 @@ def handle_tab_close(data: Dict[str, Any]):
     if not valid_payload('tab_close', data, {'channel': str}) or not chats.get_chat(data['channel']):
         return
     chats.remove_chat(data['channel'])
+
+@socketio.on('tab_reorder')
+def handle_tab_reorder(data: Dict[str, Any]):
+    log_socket_event('tab_reorder', data)
+    if not valid_payload('tab_reorder', data, {'channels': list}):
+        return
+    if not chats.reorder(data['channels']):
+        UI_EVENTS.write('invalid_socket_payload', name='tab_reorder', data=data)
+
+@socketio.on('recent_room_open')
+def handle_recent_room_open(data: Dict[str, Any]):
+    log_socket_event('recent_room_open', data)
+    if not valid_payload('recent_room_open', data, {'channel': str}):
+        return
+    channel = next(
+        (room for room in rms_cfg.rooms if room.casefold() == data['channel'].casefold()),
+        None
+    )
+    if channel:
+        start_chat(channel, osu_irc.CHANNEL_TYPE_ROOM)
+
+@socketio.on('recent_room_remove')
+def handle_recent_room_remove(data: Dict[str, Any]):
+    log_socket_event('recent_room_remove', data)
+    if not valid_payload('recent_room_remove', data, {'channel': str}):
+        return
+    rms_cfg.remove_room(data['channel'])
+    emit_recent_rooms()
+
+@socketio.on('recent_rooms_clear')
+def handle_recent_rooms_clear():
+    log_socket_event('recent_rooms_clear')
+    rms_cfg.clear_rooms()
+    emit_recent_rooms()
+
+@socketio.on('recent_rooms_limit')
+def handle_recent_rooms_limit(data: Dict[str, Any]):
+    log_socket_event('recent_rooms_limit', data)
+    if not valid_payload('recent_rooms_limit', data, {'limit': (int, str)}):
+        return
+    rms_cfg.set_max_rooms(data['limit'])
+    emit_recent_rooms()
 
 # ---------------------
 # IRC Session Routes
@@ -676,9 +758,14 @@ def change_alias(data: Dict[str, Any]):
     log_socket_event('change_alias', data)
     if not valid_payload('change_alias', data, {'channel': str, 'alias': str}):
         return
-    if not chats.get_chat(data['channel']):
+    chat = chats.get_chat(data['channel'])
+    if not chat or len(data['alias'].strip()) > 64:
         return
-    chats.get_chat(data['channel']).set_alias(data['alias'])
+    chat.set_alias(data['alias'])
+    emit('alias_changed', {
+        'channel': chat.channel_name,
+        'alias': chat.alias
+    }, broadcast=True)
 
 @socketio.on('debug')
 def debug(data: Dict[str, Any]):

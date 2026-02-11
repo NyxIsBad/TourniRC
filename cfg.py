@@ -128,8 +128,7 @@ class uiConfig():
 class roomsConfig():
     def __init__(self, configdir='cfg/recentrooms.ini', max_rooms=5):
         self.rooms = []
-        # TODO: config option in settings
-        self.max_rooms = max_rooms
+        self.max_rooms = self._clean_limit(max_rooms)
         self.configdir = configdir
         self.config = ConfigParser()
 
@@ -140,12 +139,16 @@ class roomsConfig():
 
     def create_config(self):
         self.config['ROOMS'] = {
-            'rooms': ''
+            'rooms': '',
+            'max_rooms': str(self.max_rooms)
         }
         self._write()
 
     def load_configs(self):
         self.config.read(self.configdir)
+        self.max_rooms = self._clean_limit(
+            self.config.get('ROOMS', 'max_rooms', fallback=str(self.max_rooms))
+        )
         # only load rooms, no pms or empty entries
         raw_rooms = self.config.get('ROOMS', 'rooms', fallback='').split(',')
         rooms_by_key = {}
@@ -163,8 +166,20 @@ class roomsConfig():
 
     def _write(self):
         self.config.set('ROOMS', 'rooms', ','.join(self.rooms))
+        self.config.set('ROOMS', 'max_rooms', str(self.max_rooms))
         with open(self.configdir, 'w') as configfile:
             self.config.write(configfile)
+
+    def _clean_limit(self, limit):
+        try:
+            return max(1, min(int(limit), 50))
+        except (TypeError, ValueError):
+            return 5
+
+    def set_max_rooms(self, limit):
+        self.max_rooms = self._clean_limit(limit)
+        self.rooms = self.rooms[-self.max_rooms:]
+        self._write()
 
     def clear_rooms(self):
         self.rooms = []

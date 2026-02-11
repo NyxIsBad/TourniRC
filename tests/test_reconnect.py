@@ -203,6 +203,20 @@ class UserConfigTests(unittest.TestCase):
             self.assertEqual(['#mp_three'], config.rooms)
             self.assertEqual(['#mp_three'], roomsConfig(str(path), max_rooms=2).rooms)
 
+    def test_recent_room_limit_is_clamped_and_persisted(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'recentrooms.ini'
+            config = roomsConfig(str(path))
+            config.set_max_rooms(2)
+            config.add_room('#one')
+            config.add_room('#two')
+            config.add_room('#three')
+            loaded = roomsConfig(str(path))
+            self.assertEqual(2, loaded.max_rooms)
+            self.assertEqual(['#two', '#three'], loaded.rooms)
+            loaded.set_max_rooms(999)
+            self.assertEqual(50, loaded.max_rooms)
+
     def test_chat_template_uses_dom_nodes_for_untrusted_message_data(self):
         template = (Path(__file__).parents[1] / 'templates' / 'chat.html').read_text(encoding='utf-8')
         self.assertIn('appendMessageContent(content_element, content)', template)
@@ -210,6 +224,9 @@ class UserConfigTests(unittest.TestCase):
         self.assertNotIn('${urlify(content)}', template)
         self.assertNotIn('aria-label="${data.channel}"', template)
         self.assertIn('message_list.length > 0', template)
+        self.assertIn("setupChannelHotkeys(getTabs)", template)
+        self.assertIn("tab_input.dataset.channel = data.channel", template)
+        self.assertNotIn('pinned', template.lower())
 
 
 class UiSessionTests(unittest.TestCase):
@@ -275,6 +292,72 @@ class UiSessionTests(unittest.TestCase):
             self.ui.chats.get_chat('#mp_123'),
             self.ui.chats.get_chat('#MP_123')
         )
+
+    def test_unread_notifies_once_and_clears_on_swap(self):
+        with patch.object(self.ui, 'emit'):
+            self.ui.chats.add_chat('#one', 1)
+            self.ui.chats.add_chat('#two', 1)
+            self.ui.chats.set_current_chat('#one')
+        self.client.get_received()
+        message = {
+            'user_name': 'Player',
+            'room_name': 'two',
+            'content': 'hello',
+            'channel_type': 1,
+            'time_recv': 1.0
+        }
+        self.client.emit('recv_msg', message.copy())
+        first = self.client.get_received()
+        self.assertTrue(any(event['name'] == 'tab_unread' for event in first))
+        self.assertTrue(any(event['name'] == 'notif' for event in first))
+        self.client.emit('recv_msg', message.copy())
+        second = self.client.get_received()
+        self.assertFalse(any(event['name'] == 'tab_unread' for event in second))
+        self.assertFalse(any(event['name'] == 'notif' for event in second))
+        self.assertTrue(self.ui.chats.get_chat('#two').unread)
+        self.client.emit('tab_swap', {'channel': '#TWO'}, callback=True)
+        self.assertFalse(self.ui.chats.get_chat('#two').unread)
+
+    def test_alias_and_tab_order_are_display_state_only(self):
+        with patch.object(self.ui, 'emit'):
+            self.ui.chats.add_chat('#one', 1)
+            self.ui.chats.add_chat('#two', 1)
+        self.client.get_received()
+        self.client.emit('change_alias', {'channel': '#ONE', 'alias': 'First Match'})
+        events = self.client.get_received()
+        self.assertEqual('First Match', self.ui.chats.get_chat('#one').alias)
+        self.assertTrue(any(event['name'] == 'alias_changed' for event in events))
+        self.client.emit('tab_reorder', {'channels': ['#TWO', '#one']})
+        self.assertEqual(['#two', '#one'], self.ui.chats.channel_names)
+        self.assertEqual('#one', self.ui.chats.get_chat('#ONE').channel_name)
+
+    def test_reopening_aliased_room_selects_existing_tab(self):
+        with patch.object(self.ui, 'emit'):
+            self.ui.chats.add_chat('#mp_123', 1)
+        self.client.get_received()
+        self.client.emit('change_alias', {'channel': '#mp_123', 'alias': 'Finals'})
+        self.client.get_received()
+        self.client.emit('recent_room_open', {'channel': '#MP_123'})
+        events = self.client.get_received()
+        restored = [event for event in events if event['name'] == 'restore_tab']
+        self.assertEqual({'channel': '#mp_123'}, restored[-1]['args'][0])
+        self.assertFalse(any(event['name'] == 'cmd_req_ch' for event in events))
+        self.assertEqual(1, self.ui.chats.chat_count)
+        self.assertEqual('Finals', self.ui.chats.get_chat('#mp_123').alias)
+
+    def test_recent_room_controls_update_config(self):
+        self.ui.rms_cfg.add_room('#one')
+        self.ui.rms_cfg.add_room('#two')
+        self.client.get_received()
+        self.client.emit('recent_room_open', {'channel': '#ONE'})
+        opened = self.client.get_received()
+        self.assertTrue(any(event['name'] == 'cmd_req_ch' for event in opened))
+        self.client.emit('recent_room_remove', {'channel': '#ONE'})
+        self.assertEqual(['#two'], self.ui.rms_cfg.rooms)
+        self.client.emit('recent_rooms_limit', {'limit': '12'})
+        self.assertEqual(12, self.ui.rms_cfg.max_rooms)
+        self.client.emit('recent_rooms_clear')
+        self.assertEqual([], self.ui.rms_cfg.rooms)
 
     def test_malformed_socket_payloads_are_ignored(self):
         malformed_events = [

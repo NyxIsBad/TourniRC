@@ -11,6 +11,17 @@
         .tab-close {
             opacity: 1;
         }
+        .tab-container.tab-unread {
+            border-radius: var(--rounded-btn, 0.5rem);
+            animation: unread-glow 1.8s ease-in-out infinite;
+        }
+        .tab-container.dragging {
+            opacity: .5;
+        }
+        @keyframes unread-glow {
+            0%, 100% { box-shadow: 0 0 .2rem var(--fallback-in, oklch(var(--in))); }
+            50% { box-shadow: 0 0 .8rem var(--fallback-in, oklch(var(--in))); }
+        }
         .tab:is(input[type="radio"]) {
             border-bottom-right-radius: var(--rounded-btn, 0.5rem);
             border-bottom-left-radius: var(--rounded-btn, 0.5rem);
@@ -39,10 +50,19 @@
     <!-- Main chat area -->
     <!-- outer wrapper which will contain chat & player display -->
     <div class="max-w-[65vw] mx-auto my-4 bg-base-100 ml-4 p-4 rounded shadow-md h-[80vh] w-[65vw] flex flex-col">
-        <!-- TODO: ADD ALL FUNCTIONALITIES TO CH SWAPPER -->
         <!-- Channel Selector -->
         <div id="tabs" role="tablist" class="min-h-[40px] tabs tabs-boxed mb-4 overflow-x-auto flex">
         </div>
+        <dialog id="alias-dialog" class="modal">
+            <div class="modal-box">
+                <h3 class="text-lg font-semibold">Rename Tab</h3>
+                <input id="alias-input" type="text" maxlength="64" class="input input-bordered w-full mt-2" />
+                <div class="modal-action">
+                    <button id="alias-cancel" class="btn btn-outline">Cancel</button>
+                    <button id="alias-save" class="btn btn-primary">Save</button>
+                </div>
+            </div>
+        </dialog>
         <!-- Start of chat message rendering -->
         <div id="message-container" class="flex-1 space-y-1 rounded bg-base-100 border border-base-content overflow-y-auto">
             <div id="messages" class="p-2 break-all w-full">
@@ -174,7 +194,6 @@
                                 </g>
                             </svg>
                         </button>
-                        <!-- TODO: set up js logic for this -->
                         <button id="query-btn" onclick="query_btn.showModal()" class="btn btn-circle btn-outline justify-self-end mr-2" title="Add Channel">
                             <svg xmlns="http://www.w3.org/2000/svg" width="2em" height="2em" viewBox="0 0 24 24">
                                 <path fill="currentColor" d="M5 13v-1h6V6h1v6h6v1h-6v6h-1v-6z" />
@@ -199,7 +218,6 @@
                             </div>
                         </dialog>
                         <button id="time-toggle-btn" class="btn btn-circle btn-outline justify-self-end text-error mr-2" title="Hide Timestamps">
-                            <!-- TODO: Toggle between these two -->
                             <svg xmlns="http://www.w3.org/2000/svg" width="2em" class="hidden" height="2em" viewBox="0 0 24 24">
                                 <path fill="currentColor" d="m9 22l-1.35-4.55q-1.2-.95-1.925-2.375T5 12t.725-3.075T7.65 6.55L9 2h6l1.35 4.55q1.2.95 1.925 2.375T19 12t-.725 3.075t-1.925 2.375L15 22zm3-5q2.075 0 3.538-1.463T17 12t-1.463-3.537T12 7T8.463 8.463T7 12t1.463 3.538T12 17" />
                             </svg>
@@ -252,14 +270,24 @@
             <div class="collapse collapse-arrow join-item border rounded border-base-content mb-1">
                 <input type="checkbox" name="accordion" />
                 <div class="collapse-title text-lg font-medium">Recent Rooms</div>
-                <div id="recent-rooms" class="collapse-content flex flex-col">
-                    
+                <div class="collapse-content">
+                    <div class="flex items-end gap-2 mb-2">
+                        <label class="form-control flex-1">
+                            <span class="label-text mb-1">Saved Rooms</span>
+                            <input id="recent-rooms-limit" type="number" min="1" max="50" class="input input-bordered input-sm" />
+                        </label>
+                        <button id="recent-rooms-limit-save" class="btn btn-sm btn-primary">Save</button>
+                        <button id="recent-rooms-clear" class="btn btn-sm btn-outline btn-error">Clear</button>
+                    </div>
+                    <div id="recent-rooms" class="flex flex-col gap-1">
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js" integrity="sha512-q/dWJ3kcmjBLU4Qc47E4A9kTB4m3wuTY7vkFJDTZKjTs8jhyGQnaUrxa0Ytd0ssMZhbNua9hE+E7Qv1j+DyZwA==" crossorigin="anonymous"></script>
+<script src="{{ url_for('static', filename='js/hotkeys.js') }}"></script>
 <script type="text/javascript" charset="utf-8">
     // Variables set and used by the page
     let useUTC = true; // default to UTC
@@ -404,24 +432,31 @@
             messages.appendChild(message_element);
         });
     }
-    function setRooms(room_list) {
-        // If this room has not been added to the recent rooms list, add it
+    function setRooms(room_list, limit) {
         const recent_rooms = document.getElementById('recent-rooms');
+        recent_rooms.replaceChildren();
         room_list.forEach(channel => {
-            const exists = Array.from(recent_rooms.children).some(
-                room => room.getAttribute('aria-label').toLowerCase() === channel.toLowerCase()
-            );
-            if (!exists) {
-                debug_func(channel);
-                const recent_room = document.createElement('div');
-                recent_room.classList.add('flex');
-                recent_room.setAttribute('aria-label', channel);
-                recent_room.innerText = `
-                    ${channel}
-                `;
-                recent_rooms.appendChild(recent_room);
-            }
+            const recent_room = document.createElement('div');
+            recent_room.classList.add('flex', 'items-center', 'gap-1');
+            recent_room.dataset.channel = channel;
+
+            const open = document.createElement('button');
+            open.classList.add('btn', 'btn-sm', 'btn-ghost', 'justify-start', 'flex-1', 'overflow-hidden');
+            open.dataset.action = 'open';
+            open.textContent = channel;
+            open.title = `Open ${channel}`;
+
+            const remove = document.createElement('button');
+            remove.classList.add('btn', 'btn-sm', 'btn-ghost', 'btn-square');
+            remove.dataset.action = 'remove';
+            remove.textContent = '×';
+            remove.title = `Remove ${channel}`;
+
+            recent_room.appendChild(open);
+            recent_room.appendChild(remove);
+            recent_rooms.appendChild(recent_room);
         });
+        if (limit !== undefined) document.getElementById('recent-rooms-limit').value = limit;
     }
     function setTeamColors(username, team) {
         const related_messages = getUsernameMessages(username);
@@ -446,8 +481,16 @@
     function findTab(channel) {
         // channel names should not go inside selectors
         return Array.from(document.querySelectorAll('input[name="tab"]')).find(
-            tab => tab.getAttribute('aria-label').toLowerCase() === channel.toLowerCase()
+            tab => tab.dataset.channel.toLowerCase() === channel.toLowerCase()
         );
+    }
+    function getTabs() {
+        return Array.from(document.querySelectorAll('input[name="tab"]'));
+    }
+    function sendTabOrder() {
+        socket.emit('tab_reorder', {
+            channels: getTabs().map(tab => tab.dataset.channel)
+        });
     }
     // Socket.io/communication
     document.addEventListener('DOMContentLoaded', () => {
@@ -470,6 +513,16 @@
         const time_toggle = document.getElementById('time-toggle-btn');
         const scroll = document.getElementById('scroll-btn')
         const savelog = document.getElementById('download-btn');
+        const recent_rooms = document.getElementById('recent-rooms');
+        const recent_rooms_limit = document.getElementById('recent-rooms-limit');
+        const recent_rooms_limit_save = document.getElementById('recent-rooms-limit-save');
+        const recent_rooms_clear = document.getElementById('recent-rooms-clear');
+        const alias_dialog = document.getElementById('alias-dialog');
+        const alias_input = document.getElementById('alias-input');
+        const alias_save = document.getElementById('alias-save');
+        const alias_cancel = document.getElementById('alias-cancel');
+        let alias_channel = null;
+        let dragged_tab = null;
 
         // FROM server
         // Receive message from server
@@ -490,13 +543,12 @@
             if (!selected_tab) {
                 return;
             }
-            if (selected_tab.getAttribute('aria-label') !== data.channel) {
+            if (selected_tab.dataset.channel !== data.channel) {
                 return;
             }
             setTeamColors(data.username, data.team);
         });
         socket.on('bounce_tab_open', function(data) {
-            // TODO: implement the alias
             const tab_container = document.getElementById('tabs');
             var open_first = false;
             // Set flag for opening tab if we need to
@@ -504,32 +556,51 @@
                 open_first = true;
             }
             // Prevent opening the same tab twice
-            if (findTab(data.channel)) {
+            const existing_tab = findTab(data.channel);
+            if (existing_tab) {
+                existing_tab.setAttribute('aria-label', data.alias || data.channel);
+                existing_tab.parentElement.classList.toggle('tab-unread', Boolean(data.unread));
                 return;
             }
             // Create a new tab
             const new_tab = document.createElement('div');
             new_tab.classList.add('tab-container', 'flex');
+            new_tab.draggable = true;
             const tab_input = document.createElement('input');
             tab_input.type = 'radio';
             tab_input.name = 'tab';
             tab_input.setAttribute('role', 'tab');
             tab_input.classList.add('tab');
-            tab_input.setAttribute('aria-label', data.channel);
+            tab_input.dataset.channel = data.channel;
+            tab_input.setAttribute('aria-label', data.alias || data.channel);
             const close_button = document.createElement('button');
             close_button.classList.add('tab-close', 'mr-1');
-            close_button.setAttribute('aria-label', `Close ${data.channel}`);
+            close_button.setAttribute('aria-label', `Close ${data.alias || data.channel}`);
             close_button.textContent = '×';
             new_tab.appendChild(tab_input);
             new_tab.appendChild(close_button);
             tab_container.appendChild(new_tab);
+            new_tab.classList.toggle('tab-unread', Boolean(data.unread));
             // If this is the first tab, select it
             if (open_first) {
                 new_tab.querySelector('.tab').click();
             }
-            // Add it to the recent rooms list
-            setRooms([data.channel]);
         })
+        socket.on('tab_unread', function(data) {
+            const tab = findTab(data.channel);
+            if (tab && !tab.checked) tab.parentElement.classList.add('tab-unread');
+        });
+        socket.on('alias_changed', function(data) {
+            const tab = findTab(data.channel);
+            if (!tab) return;
+            tab.setAttribute('aria-label', data.alias);
+            tab.nextElementSibling.setAttribute('aria-label', `Close ${data.alias}`);
+            if (tab.checked) document.title = `${data.alias} - TourniRC`;
+        });
+        socket.on('recent_rooms_state', function(data) {
+            if (!data || !Array.isArray(data.rooms)) return;
+            setRooms(data.rooms, data.max_rooms);
+        });
         socket.on('restore_tab', function(data) {
             const tab = findTab(data.channel);
             if (tab) tab.click();
@@ -593,7 +664,7 @@
             if (!selected_tab) {
                 socket.emit('send_msg', { content: message });
             } else {
-                socket.emit('send_msg', { content: message, channel: selected_tab.getAttribute('aria-label') });
+                socket.emit('send_msg', { content: message, channel: selected_tab.dataset.channel });
             }
         });
         match_input.addEventListener('input', (e) => {
@@ -615,7 +686,9 @@
         // Delegation of tab handling
         document.getElementById('tabs').addEventListener('click', (e) => {
             if (e.target.classList.contains('tab')) {
-                const channel = e.target.getAttribute('aria-label');
+                const channel = e.target.dataset.channel;
+                e.target.parentElement.classList.remove('tab-unread');
+                document.title = `${e.target.getAttribute('aria-label')} - TourniRC`;
                 emitAndResponse('tab_swap', channel).then((data) => {
                     if (data.messages) {
                         setMessages(data.messages);
@@ -639,7 +712,7 @@
                         scrollToBottom();
                     }
                     if (data.recent_rooms) {
-                        setRooms(data.recent_rooms);
+                        setRooms(data.recent_rooms, data.recent_rooms_limit);
                     }
                 }).catch((error) => {
                     console.error('Tab swap failed: ' + error);
@@ -648,8 +721,9 @@
                 // Find the sibling input element
                 const sibling_tab = e.target.previousElementSibling;
                 // This HAS to exist; if it doesn't then I've fucked up real bad
-                const selected_tab = document.querySelector('input[name="tab"]:checked').getAttribute('aria-label');
-                const tab_name = sibling_tab.getAttribute('aria-label');
+                const selected_tab = document.querySelector('input[name="tab"]:checked');
+                const selected_channel = selected_tab ? selected_tab.dataset.channel : null;
+                const tab_name = sibling_tab.dataset.channel;
                 // Find the parent tab-container
                 const tab_container = e.target.parentElement;
                 const tab_parent = document.getElementById('tabs');
@@ -658,7 +732,7 @@
                     socket.emit('tab_close', { channel: tab_name });
                     // Clear the tab
                     tab_container.remove();
-                    if (selected_tab === tab_name) {
+                    if (selected_channel === tab_name) {
                         clearMessages();
                         // Load the first tab if the current tab is closed
                         next_tab = document.querySelector('.tab');
@@ -666,12 +740,74 @@
                             next_tab.click();
                         } else {
                             console.log('No tabs left');
+                            document.title = 'TourniRC';
                         }
                         // After this tab swap will be handled by the above tab swap logic
                     }
                 }
             }
         });
+        document.getElementById('tabs').addEventListener('dblclick', (e) => {
+            if (!e.target.classList.contains('tab')) return;
+            alias_channel = e.target.dataset.channel;
+            alias_input.value = e.target.getAttribute('aria-label');
+            alias_dialog.showModal();
+            alias_input.focus();
+            alias_input.select();
+        });
+        document.getElementById('tabs').addEventListener('dragstart', (e) => {
+            const container = e.target.closest('.tab-container');
+            if (!container) return;
+            dragged_tab = container;
+            container.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+        });
+        document.getElementById('tabs').addEventListener('dragover', (e) => {
+            if (!dragged_tab) return;
+            e.preventDefault();
+            const target = e.target.closest('.tab-container');
+            if (!target || target === dragged_tab) return;
+            const before = e.clientX < target.getBoundingClientRect().left + target.offsetWidth / 2;
+            target.parentElement.insertBefore(dragged_tab, before ? target : target.nextSibling);
+        });
+        document.getElementById('tabs').addEventListener('dragend', () => {
+            if (!dragged_tab) return;
+            dragged_tab.classList.remove('dragging');
+            dragged_tab = null;
+            sendTabOrder();
+        });
+        alias_save.addEventListener('click', () => {
+            if (!alias_channel) return;
+            socket.emit('change_alias', {
+                channel: alias_channel,
+                alias: alias_input.value.trim()
+            });
+            alias_dialog.close();
+            alias_channel = null;
+        });
+        alias_cancel.addEventListener('click', () => {
+            alias_dialog.close();
+            alias_channel = null;
+        });
+        alias_input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') alias_save.click();
+        });
+        recent_rooms.addEventListener('click', (e) => {
+            const row = e.target.closest('[data-channel]');
+            if (!row) return;
+            if (e.target.dataset.action === 'open') {
+                socket.emit('recent_room_open', { channel: row.dataset.channel });
+            } else if (e.target.dataset.action === 'remove') {
+                socket.emit('recent_room_remove', { channel: row.dataset.channel });
+            }
+        });
+        recent_rooms_limit_save.addEventListener('click', () => {
+            socket.emit('recent_rooms_limit', { limit: recent_rooms_limit.value });
+        });
+        recent_rooms_clear.addEventListener('click', () => {
+            socket.emit('recent_rooms_clear');
+        });
+        setupChannelHotkeys(getTabs);
         // Button handling
         match_timer.addEventListener('click', (e) => {
             socket.emit('send_msg', { content: '!mp timer '+match_input.value });
