@@ -85,51 +85,45 @@
             <div class="collapse collapse-arrow join-item border rounded border-base-content mb-1">
                 <input type="checkbox" name="accordion" checked="checked" />
                 <div class="collapse-title text-lg font-medium">Channel Info</div>
-                <div class="collapse-content">
+                <div class="collapse-content space-y-1">
                     <!-- row 1 -->
-                    <div class="flex flex-row items-start w-[30vw]">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
-                        </svg>
-                        <a href="https://osu.ppy.sh/mp/114546263" target="_blank" rel="noopener noreferrer" class="link text-accent w-full overflow-hidden text-ellipsis whitespace-nowrap">MP Name (links to MP) Testing for overflow overflow overflow overflow</a>
+                    <div id="channel-info-name-row" class="flex flex-row items-start w-[30vw]">
+                        <a id="channel-info-link" target="_blank" rel="noopener noreferrer" class="link text-accent w-full overflow-hidden text-ellipsis whitespace-nowrap"></a>
                     </div>
                     <!-- row 2 -->
-                    <div class="flex flex-row items-start w-[30vw]">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 8.25h15m-16.5 7.5h15m-1.8-13.5-3.9 19.5m-2.1-19.5-3.9 19.5" />
-                        </svg>
-                        <p class="font-semibold mr-1">Match Size: </p>
-                        <p class="mr-2">16</p>
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                        </svg>
+                    <div id="channel-info-match-row" class="hidden flex-row items-start w-[30vw]">
+                        <p class="font-semibold mr-1">Size: </p>
+                        <p id="match-size" class="mr-2">Unknown</p>
+                        <p class="font-semibold mr-1">Players: </p>
+                        <p id="match-player-count" class="mr-2">0</p>
                         <p class="font-semibold mr-1">Timer: </p>
-                        <p>No timer active</p>
+                        <p id="match-active-timer">No timer active</p>
                     </div>
                     <!-- row 3 -->
-                    <div class="flex flex-row items-start w-[30vw]">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" />
-                        </svg>
+                    <div id="channel-info-settings-row" class="hidden flex-row items-start w-[30vw]">
                         <p class="font-semibold mr-1">Format: </p>
-                        <p class="mr-2">Head To Head</p>
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 9h3.75M15 12h3.75M15 15h3.75M4.5 19.5h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Zm6-10.125a1.875 1.875 0 1 1-3.75 0 1.875 1.875 0 0 1 3.75 0Zm1.294 6.336a6.721 6.721 0 0 1-3.17.789 6.721 6.721 0 0 1-3.168-.789 3.376 3.376 0 0 1 6.338 0Z" />
-                        </svg>                          
+                        <p id="match-team-mode" class="mr-2">Unknown</p>
                         <p class="font-semibold mr-1">Mode: </p>
                         <p>osu</p>
                     </div>
                     <!-- row 4 -->
-                    <div class="flex flex-row items-start w-[30vw]">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 0 1-.982-3.172M9.497 14.25a7.454 7.454 0 0 0 .981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 0 0 7.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M7.73 9.728a6.726 6.726 0 0 0 2.748 1.35m8.272-6.842V4.5c0 2.108-.966 3.99-2.48 5.228m2.48-5.492a46.32 46.32 0 0 1 2.916.52 6.003 6.003 0 0 1-5.395 4.972m0 0a6.726 6.726 0 0 1-2.749 1.35m0 0a6.772 6.772 0 0 1-3.044 0" />
-                        </svg>
+                    <div id="channel-info-win-row" class="hidden flex-row items-start w-[30vw]">
                         <p class="font-semibold mr-1">Win Condition: </p>
-                        <p class="mr-2">Score</p>
+                        <p id="match-win-condition" class="mr-2">Unknown</p>
+                    </div>
+                    <!-- row 5 -->
+                    <div id="channel-info-map-row" class="hidden flex-row items-start w-[30vw]">
+                        <p class="font-semibold mr-1">Beatmap: </p>
+                        <a id="match-beatmap" target="_blank" rel="noopener noreferrer" class="link text-accent overflow-hidden text-ellipsis whitespace-nowrap">Unknown</a>
+                    </div>
+                    <!-- row 6 -->
+                    <div id="channel-info-mods-row" class="hidden flex-row items-start w-[30vw]">
+                        <p class="font-semibold mr-1">Mods: </p>
+                        <p id="match-mods">Unknown</p>
                     </div>
                 </div>
             </div>
-            <div class="collapse collapse-arrow join-item border rounded border-base-content mb-1">
+            <div id="match-commands" class="hidden collapse collapse-arrow join-item border rounded border-base-content mb-1">
                 <input type="checkbox" name="accordion" />
                 <div class="collapse-title text-lg font-medium">Commands</div>
                 <div class="collapse-content">
@@ -238,33 +232,12 @@
                     </div>
                 </div>
             </div>
-            <div class="collapse collapse-arrow join-item border rounded border-base-content mb-1">
-                <input type="checkbox" name="accordion" />
-                <div class="collapse-title text-lg font-medium">Maps</div>
-                <div class="collapse-content">
-                    <p>hello</p>
-                </div>
-            </div>
-            <div class="collapse collapse-arrow join-item border rounded border-base-content mb-1">
+            <div id="match-players-panel" class="hidden collapse collapse-arrow join-item border rounded border-base-content mb-1">
                 <input type="checkbox" name="accordion" />
                 <div class="collapse-title text-lg font-medium">Players</div>
                 <div class="collapse-content">
-                    <h1 class="text-red-500">Red</h1>
-                    <div id="red-players" class="flex flex-col">
+                    <div id="players-list" class="flex flex-col gap-2">
                     </div>
-                    <h1 class="text-blue-500">Blue</h1>
-                    <div id="blue-players" class="flex flex-col">
-                    </div>
-                    <h1>None</h1>
-                    <div id="none-players" class="flex flex-col">
-                    </div>
-                </div>
-            </div>
-            <div class="collapse collapse-arrow join-item border rounded border-base-content mb-1">
-                <input type="checkbox" name="accordion" />
-                <div class="collapse-title text-lg font-medium">Mods</div>
-                <div class="collapse-content">
-                    <p>hello</p>
                 </div>
             </div>
             <div class="collapse collapse-arrow join-item border rounded border-base-content mb-1">
@@ -458,11 +431,104 @@
         });
         if (limit !== undefined) document.getElementById('recent-rooms-limit').value = limit;
     }
+    let active_timer_end = null;
+    let active_timer_type = null;
+    function updateMatchTimer() {
+        const timer = document.getElementById('match-active-timer');
+        if (!active_timer_end) {
+            timer.textContent = 'No timer active';
+            return;
+        }
+        const remaining = Math.max(0, Math.ceil((active_timer_end - Date.now()) / 1000));
+        const label = active_timer_type === 'start_timer' ? 'Start' : 'Match';
+        timer.textContent = `${label}: ${remaining}s`;
+        if (remaining === 0) {
+            active_timer_end = null;
+            active_timer_type = null;
+        }
+    }
+    function setPlayers(players) {
+        const player_list = document.getElementById('players-list');
+        player_list.replaceChildren();
+        Object.entries(players || {}).forEach(([username, state]) => {
+            const row = document.createElement('div');
+            row.classList.add('rounded', 'p-2', 'text-white');
+            row.classList.add(state.team === 1 ? 'bg-red-500' : state.team === 2 ? 'bg-blue-500' : 'bg-neutral');
+
+            const heading = document.createElement('div');
+            heading.classList.add('flex', 'items-center', 'gap-2');
+            const player = document.createElement('a');
+            player.href = `https://osu.ppy.sh/users/${encodeURIComponent(username)}`;
+            player.target = '_blank';
+            player.rel = 'noopener noreferrer';
+            player.classList.add('link', 'link-hover', 'font-semibold');
+            player.textContent = username;
+            heading.appendChild(player);
+
+            if (state.host) {
+                const host = document.createElement('span');
+                host.classList.add('badge', 'badge-sm');
+                host.textContent = 'Host';
+                heading.appendChild(host);
+            }
+
+            const details = document.createElement('p');
+            details.classList.add('text-sm');
+            const ready = state.ready === true ? 'Ready' : state.ready === false ? 'Not Ready' : 'Ready: Unknown';
+            const mods = state.mods ? `Mods: ${state.mods}` : 'Mods: Unknown';
+            const slot = state.slot ? `Slot ${state.slot}` : 'Slot: Unknown';
+            details.textContent = `${slot} · ${ready} · ${mods}`;
+            row.appendChild(heading);
+            row.appendChild(details);
+            player_list.appendChild(row);
+        });
+    }
+    function setChannelInfo(info, players) {
+        const is_match = info && info.kind === 'match';
+        const link = document.getElementById('channel-info-link');
+        link.textContent = info ? info.name : '';
+        if (info && info.url) {
+            link.href = info.url;
+            link.classList.add('link', 'text-accent');
+        } else {
+            link.removeAttribute('href');
+            link.classList.remove('link', 'text-accent');
+        }
+        ['channel-info-match-row', 'channel-info-settings-row', 'channel-info-win-row', 'channel-info-map-row', 'channel-info-mods-row'].forEach(id => {
+            const row = document.getElementById(id);
+            row.classList.toggle('hidden', !is_match);
+            row.classList.toggle('flex', is_match);
+        });
+        ['match-commands', 'match-players-panel'].forEach(id => {
+            document.getElementById(id).classList.toggle('hidden', !is_match);
+        });
+        document.getElementById('match-player-count').textContent = info && info.player_count !== null ? info.player_count : 0;
+        document.getElementById('match-size').textContent = info && info.match_size || 'Unknown';
+        document.getElementById('match-team-mode').textContent = info && info.team_mode || 'Unknown';
+        document.getElementById('match-win-condition').textContent = info && info.win_condition || 'Unknown';
+        const beatmap = document.getElementById('match-beatmap');
+        beatmap.textContent = info && info.beatmap || 'Unknown';
+        if (info && info.map_url) {
+            beatmap.href = info.map_url;
+            beatmap.classList.add('link', 'text-accent');
+        } else {
+            beatmap.removeAttribute('href');
+            beatmap.classList.remove('link', 'text-accent');
+        }
+        let mods = info && info.mods || 'Unknown';
+        if (info && info.mods_host_unknown) {
+            mods = info.host ? `Unknown (${info.host} has host)` : 'Unknown (refresh settings)';
+        }
+        document.getElementById('match-mods').textContent = mods;
+        active_timer_end = info && info.timer_ends_at;
+        active_timer_type = info && info.active_timer;
+        updateMatchTimer();
+        setPlayers(players);
+    }
     function setTeamColors(username, team) {
         const related_messages = getUsernameMessages(username);
         console.log(related_messages);
         related_messages.forEach((element) => {
-            // TODO: add to teams section here
             if (team === 0) {
                 // remove team color tags
                 element.classList.remove('text-red-500');
@@ -548,6 +614,11 @@
             }
             setTeamColors(data.username, data.team);
         });
+        socket.on('match_state', function(data) {
+            const selected_tab = document.querySelector('input[name="tab"]:checked');
+            if (!selected_tab || selected_tab.dataset.channel.toLowerCase() !== data.channel.toLowerCase()) return;
+            setChannelInfo(data.info, data.players);
+        });
         socket.on('bounce_tab_open', function(data) {
             const tab_container = document.getElementById('tabs');
             var open_first = false;
@@ -595,7 +666,10 @@
             if (!tab) return;
             tab.setAttribute('aria-label', data.alias);
             tab.nextElementSibling.setAttribute('aria-label', `Close ${data.alias}`);
-            if (tab.checked) document.title = `${data.alias} - TourniRC`;
+            if (tab.checked) {
+                document.title = `${data.alias} - TourniRC`;
+                setChannelInfo(data.info, data.players);
+            }
         });
         socket.on('recent_rooms_state', function(data) {
             if (!data || !Array.isArray(data.rooms)) return;
@@ -708,6 +782,9 @@
                             setTeamColors(username, team);
                         }
                     }
+                    if (data.channel_info) {
+                        setChannelInfo(data.channel_info, data.players || {});
+                    }
                     if (keepScroll) {
                         scrollToBottom();
                     }
@@ -741,6 +818,7 @@
                         } else {
                             console.log('No tabs left');
                             document.title = 'TourniRC';
+                            setChannelInfo(null, {});
                         }
                         // After this tab swap will be handled by the above tab swap logic
                     }
@@ -808,6 +886,7 @@
             socket.emit('recent_rooms_clear');
         });
         setupChannelHotkeys(getTabs);
+        setInterval(updateMatchTimer, 250);
         // Button handling
         match_timer.addEventListener('click', (e) => {
             socket.emit('send_msg', { content: '!mp timer '+match_input.value });

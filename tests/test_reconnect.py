@@ -345,6 +345,90 @@ class UiSessionTests(unittest.TestCase):
         self.assertEqual(1, self.ui.chats.chat_count)
         self.assertEqual('Finals', self.ui.chats.get_chat('#mp_123').alias)
 
+    def test_channel_info_is_contextual(self):
+        match = self.ui.Chat('#mp_123', 1)
+        private = self.ui.Chat('BanchoBot', 2)
+        channel = self.ui.Chat('#osu', 1)
+        self.assertEqual('https://osu.ppy.sh/mp/123', match.channel_info()['url'])
+        self.assertEqual('https://osu.ppy.sh/users/BanchoBot', private.channel_info()['url'])
+        self.assertIsNone(channel.channel_info()['url'])
+        self.assertEqual(('match', 'pm', 'channel'), (
+            match.channel_info()['kind'],
+            private.channel_info()['kind'],
+            channel.channel_info()['kind']
+        ))
+
+    def test_match_state_tracks_players_settings_and_timer_priority(self):
+        chat = self.ui.Chat('#mp_123', 1)
+        with patch.object(self.ui, 'emit'):
+            chat.team_change('Player', self.ui.TEAM_RED)
+        chat.match_name = 'Finals'
+        chat.team_mode = 'TeamVs'
+        chat.win_condition = 'ScoreV2'
+        chat.beatmap = 'Artist - Title [Insane]'
+        chat.mods = 'HD, HR'
+        chat.set_active_timer('match_timer', 120, 1000)
+        chat.set_active_timer('start_timer', 5, 1001)
+        self.assertEqual(1006, chat.timer_ends_at)
+        self.assertEqual('start_timer', chat.active_timer)
+        self.assertEqual(1, chat.channel_info()['player_count'])
+        chat.remove_player('player')
+        self.assertEqual({}, chat.teams)
+
+    def test_banchobot_messages_update_match_state(self):
+        with patch.object(self.ui, 'emit'):
+            self.ui.chats.add_chat('#mp_123', 1)
+
+        def receive(content, received_at=1000):
+            self.client.emit('recv_msg', {
+                'user_name': 'BanchoBot',
+                'room_name': 'mp_123',
+                'content': content,
+                'channel_type': 1,
+                'time_recv': received_at
+            })
+
+        receive('Room name: Finals, History: https://osu.ppy.sh/mp/123')
+        receive('Team mode: TeamVs, Win condition: ScoreV2')
+        receive('Players: 1')
+        receive('Slot 1  Not Ready https://osu.ppy.sh/users/10 Player Name [Host / Team Red ]')
+        receive('All players are ready')
+        receive('Changed match to size 2')
+        receive('Countdown ends in 2 minutes')
+        receive('Match starts in 5 seconds', 1001)
+        chat = self.ui.chats.get_chat('#mp_123')
+        self.assertEqual(('Finals', 'TeamVs', 'ScoreV2'), (
+            chat.match_name, chat.team_mode, chat.win_condition
+        ))
+        self.assertEqual({'Player_Name': self.ui.TEAM_RED}, chat.teams)
+        self.assertTrue(chat.players['Player_Name']['ready'])
+        self.assertTrue(chat.players['Player_Name']['host'])
+        self.assertEqual(2, chat.match_size)
+        self.assertEqual(('start_timer', 1006), (chat.active_timer, chat.timer_ends_at))
+        receive('Aborted the match', 1002)
+        self.assertIsNone(chat.active_timer)
+        self.assertTrue(any(
+            event['name'] == 'match_state' for event in self.client.get_received()
+        ))
+
+    def test_set_match_updates_state_without_sending_settings(self):
+        with patch.object(self.ui, 'emit'):
+            self.ui.chats.add_chat('#mp_123', 1)
+        self.ui.connection_state['state'] = self.ui.IRC_STATE_AUTHENTICATED
+        self.client.get_received()
+        self.client.emit('recv_msg', {
+            'user_name': 'BanchoBot',
+            'room_name': 'mp_123',
+            'content': 'Changed match settings to TeamVs, ScoreV2',
+            'channel_type': 1,
+            'time_recv': 1000
+        })
+        chat = self.ui.chats.get_chat('#mp_123')
+        self.assertEqual(('TeamVs', 'ScoreV2'), (chat.team_mode, chat.win_condition))
+        self.assertFalse(any(
+            event['name'] == 'bounce_send_msg' for event in self.client.get_received()
+        ))
+
     def test_recent_room_controls_update_config(self):
         self.ui.rms_cfg.add_room('#one')
         self.ui.rms_cfg.add_room('#two')

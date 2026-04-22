@@ -52,6 +52,14 @@ def emit_recent_rooms() -> None:
         'max_rooms': rms_cfg.max_rooms
     }, broadcast=True)
 
+def emit_match_state(chat) -> None:
+    emit('match_state', {
+        'channel': chat.channel_name,
+        'info': chat.channel_info(),
+        'teams': chat.teams,
+        'players': chat.players
+    }, broadcast=True)
+
 TEAM_RED = 1
 TEAM_BLUE = 2
 TEAM_NONE = 0
@@ -142,7 +150,6 @@ def command_parse(command: str) -> None:
         return
     if command == "/query":
         if len(args) == 0:
-            # TODO: make this work, the <> is currently escaped in HTML
             create_notif("Usage: /query <channel>", notif_type=NOTIF_TYPE_WARNING)
         else:
             start_chat(args[0], osu_irc.CHANNEL_TYPE_ROOM if args[0].startswith("#") else osu_irc.CHANNEL_TYPE_PM)
@@ -174,7 +181,6 @@ def command_parse(command: str) -> None:
             emit('set_match_timer_input', {
                 'timer': args[0]
             })
-            # TODO: match timer logic here
             handle_send_msg({
                 "content": f"!mp start {args[0]}"
             })
@@ -212,11 +218,24 @@ class Chat():
         self.alias = self.channel_name
         self.unread = False
         self.messages: List[List] = []
-        # TODO: implement this or delete it depending on feedback
         # 1 = red, 2 = blue, 0 = none
         self.teams: Dict[str, int] = {}
+        self.players: Dict[str, Dict[str, Any]] = {}
         self.timer = kwargs['timer'] if 'timer' in kwargs else 120
         self.match_timer = kwargs['match_timer'] if 'match_timer' in kwargs else 5
+        self.match_name = None
+        self.match_id = channel_name[4:] if channel_name.casefold().startswith('#mp_') else None
+        self.team_mode = None
+        self.win_condition = None
+        self.player_count = 0
+        self.beatmap = None
+        self.map_id = None
+        self.mods = None
+        self.mods_host_unknown = False
+        self.match_size = None
+        self.host = None
+        self.active_timer = None
+        self.timer_ends_at = None
         
     def add_message(self, message: Dict[str, Any]) -> None:
         """
@@ -228,18 +247,88 @@ class Chat():
             create_notif(f"Something has gone terribly wrong, code MSG-001", notif_type=NOTIF_TYPE_ERROR)
             raise ValueError(f"Message not in channel {self.channel_name}")
         
-    # TODO: Implement this or delete it depending on feedback
     def team_change(self, user: str, team: int) -> None:
         """
         Change a user's team in the chat channel.
         """
         # Should only be 0, 1, 2
+        user = case_insensitive_get(self.teams, user) or user
         self.teams[user] = team
+        player = self.players.setdefault(user, {
+            'team': TEAM_NONE,
+            'ready': None,
+            'host': False,
+            'mods': None,
+            'slot': None
+        })
+        player['team'] = team
+        self.player_count = len(self.teams)
         emit('team_change', {
             'username': user,
             'team': team,
             'channel': self.channel_name
         }, broadcast=True)
+
+    def remove_player(self, user: str) -> None:
+        player = case_insensitive_get(self.teams, user)
+        if player:
+            self.teams.pop(player)
+            self.players.pop(player, None)
+        if self.host and self.host.casefold() == user.casefold():
+            self.host = None
+        self.player_count = len(self.teams)
+
+    def update_player(self, event) -> None:
+        user = case_insensitive_get(self.players, event.username) or event.username
+        team = team_map[event.team]
+        self.teams[user] = team
+        player = self.players.setdefault(user, {})
+        player.update({
+            'team': team,
+            'ready': event.ready,
+            'host': bool(event.host),
+            'mods': event.mods,
+            'slot': event.slot
+        })
+        if event.host:
+            self.set_host(user)
+        self.player_count = len(self.players)
+
+    def set_host(self, user: str = None) -> None:
+        self.host = user
+        for username, player in self.players.items():
+            player['host'] = bool(user and username.casefold() == user.casefold())
+
+    def set_active_timer(self, timer_type: str, seconds: int, received_at: float) -> None:
+        self.active_timer = timer_type
+        self.timer_ends_at = received_at + seconds
+
+    def stop_active_timer(self) -> None:
+        self.active_timer = None
+        self.timer_ends_at = None
+
+    def channel_info(self) -> Dict[str, Any]:
+        is_match = self.type == osu_irc.CHANNEL_TYPE_ROOM and self.channel_name.casefold().startswith('#mp_')
+        is_pm = self.type == osu_irc.CHANNEL_TYPE_PM
+        return {
+            'kind': 'match' if is_match else 'pm' if is_pm else 'channel',
+            'channel': self.channel_name,
+            'name': self.match_name or self.alias,
+            'url': f'https://osu.ppy.sh/mp/{self.match_id}' if is_match and self.match_id else
+                   f'https://osu.ppy.sh/users/{self.channel_name}' if is_pm else None,
+            'match_id': self.match_id,
+            'team_mode': self.team_mode,
+            'win_condition': self.win_condition,
+            'match_size': self.match_size,
+            'player_count': self.player_count,
+            'beatmap': self.beatmap,
+            'map_url': f'https://osu.ppy.sh/b/{self.map_id}' if self.map_id else None,
+            'mods': self.mods,
+            'mods_host_unknown': self.mods_host_unknown,
+            'host': self.host,
+            'active_timer': self.active_timer,
+            'timer_ends_at': self.timer_ends_at * 1000 if self.timer_ends_at else None
+        }
 
     def set_timer(self, timer: int) -> None:
         """
@@ -597,10 +686,69 @@ def handle_recv_msg(data: Dict[str, Any]):
         if event.kind == 'create_match':
             start_chat(f"#mp_{event.match_id}", osu_irc.CHANNEL_TYPE_ROOM)
             return
-        if event.kind in {'slot', 'join_slot', 'change_team'}:
-            team = team_map[event.team]
-            chats.get_chat(data['room_name']).team_change(event.username, team)
+        chat = chats.get_chat(data['room_name'])
+        if event.kind in {'slot', 'join_slot'}:
+            chat.update_player(event)
+            emit_match_state(chat)
             return
+        if event.kind == 'change_team':
+            chat.team_change(event.username, team_map[event.team])
+            emit_match_state(chat)
+            return
+        if event.kind == 'leave':
+            chat.remove_player(event.username)
+        elif event.kind == 'room_info':
+            chat.match_id = event.match_id
+            chat.match_name = event.match_name
+        elif event.kind == 'team_mode':
+            chat.team_mode = event.team
+            chat.win_condition = event.value
+            if chat.team_mode.casefold() in {'headtohead', 'tagcoop'}:
+                for username in chat.teams:
+                    chat.teams[username] = TEAM_NONE
+                    chat.players[username]['team'] = TEAM_NONE
+        elif event.kind == 'players':
+            chat.teams.clear()
+            chat.players.clear()
+            chat.player_count = int(event.value)
+        elif event.kind == 'beatmap':
+            chat.beatmap = event.value
+            chat.map_id = event.map_id
+        elif event.kind == 'mods':
+            chat.mods = event.value
+            chat.mods_host_unknown = bool(chat.host)
+        elif event.kind == 'set_match':
+            settings = [setting.strip() for setting in event.value.split(',')]
+            if settings:
+                chat.team_mode = settings[0]
+                if chat.team_mode.casefold() in {'headtohead', 'tagcoop'}:
+                    for username in chat.teams:
+                        chat.teams[username] = TEAM_NONE
+                        chat.players[username]['team'] = TEAM_NONE
+            if len(settings) > 1:
+                chat.win_condition = settings[1]
+            if len(settings) > 2 and settings[2].isdigit():
+                chat.match_size = int(settings[2])
+        elif event.kind == 'match_size':
+            chat.match_size = event.size
+        elif event.kind == 'host':
+            chat.set_host(event.username)
+            chat.mods_host_unknown = True
+        elif event.kind == 'clear_host':
+            chat.set_host()
+        elif event.kind == 'all_ready':
+            for player in chat.players.values():
+                player['ready'] = True
+        elif event.kind == 'host_map':
+            chat.mods = None
+            chat.mods_host_unknown = True
+        elif event.kind in {'match_timer', 'start_timer'}:
+            chat.set_active_timer(event.kind, event.seconds, data['time_recv'])
+        elif event.kind == 'countdown_abort':
+            chat.stop_active_timer()
+        elif event.kind == 'match_abort' and chat.active_timer == 'start_timer':
+            chat.stop_active_timer()
+        emit_match_state(chat)
 
 @socketio.on('tab_swap')
 def handle_tab_swap(data: Dict[str, Any]):
@@ -620,6 +768,8 @@ def handle_tab_swap(data: Dict[str, Any]):
         'timer': chats.get_chat(channel).timer,
         'match_timer': chats.get_chat(channel).match_timer,
         'teams': json.dumps(chats.get_chat(channel).teams),
+        'players': chats.get_chat(channel).players,
+        'channel_info': chats.get_chat(channel).channel_info(),
         'recent_rooms': rms_cfg.rooms,
         'recent_rooms_limit': rms_cfg.max_rooms
     })
@@ -764,7 +914,10 @@ def change_alias(data: Dict[str, Any]):
     chat.set_alias(data['alias'])
     emit('alias_changed', {
         'channel': chat.channel_name,
-        'alias': chat.alias
+        'alias': chat.alias,
+        'info': chat.channel_info(),
+        'teams': chat.teams,
+        'players': chat.players
     }, broadcast=True)
 
 @socketio.on('debug')
