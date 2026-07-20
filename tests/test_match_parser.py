@@ -74,6 +74,8 @@ class MatchParserTests(unittest.TestCase):
 
     def test_live_size_host_mod_and_map_messages_are_parsed(self):
         self.assertEqual(15, parse_banchobot_message('Changed match to size 15').size)
+        move = parse_banchobot_message('HijiriS moved to slot 3')
+        self.assertEqual(('move_slot', 'HijiriS', 3), (move.kind, move.username, move.slot))
         self.assertEqual('all_ready', parse_banchobot_message('All players are ready').kind)
         self.assertEqual('HijiriS', parse_banchobot_message('HijiriS became the host.').username)
         self.assertEqual('clear_host', parse_banchobot_message('Cleared match host').kind)

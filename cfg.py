@@ -84,9 +84,9 @@ class userConfig():
 # UI CFG Classes    #
 # ----------------- #
 class uiConfig():
-    def __init__(self):
+    def __init__(self, configdir='cfg/ui.ini'):
         self.theme = 'dark'
-        self.configdir = f'cfg/ui.ini'
+        self.configdir = configdir
         self.config = ConfigParser()
 
         if not os.path.exists(self.configdir):
@@ -113,6 +113,7 @@ class uiConfig():
 
     def set_theme(self, theme_name):
         if theme_name in THEMES:
+            self.theme = theme_name
             self.config['THEME']['theme'] = theme_name
         with open(self.configdir, 'w') as configfile:
             self.config.write(configfile)

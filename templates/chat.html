@@ -339,11 +339,9 @@
     }
     function emitAndResponse(tag, channel) {
         return new Promise((resolve, reject) => {
-            socket.emit(tag, { channel: channel });
-            socket.once(tag+'_response', function(data) {
+            socket.emit(tag, { channel: channel }, function(data) {
                 resolve(data);
             });
-            // let's just pretend reject doesn't exist - quick and dirty, probably horrible practice, but it works?
         });
     }
     function scrollToBottom() {
@@ -353,6 +351,15 @@
     function clearMessages() {
         const messages = document.getElementById('messages');
         messages.innerHTML = '';
+    }
+    function resetChatSession() {
+        document.getElementById('tabs').replaceChildren();
+        document.getElementById('recent-rooms').replaceChildren();
+        clearMessages();
+        setChannelInfo(null, {});
+        const alias_dialog = document.getElementById('alias-dialog');
+        if (alias_dialog.open) alias_dialog.close();
+        document.title = 'TourniRC';
     }
     function makeMessage(time, user, content, team) {
         const message_element = document.createElement('div');
@@ -413,10 +420,21 @@
             recent_room.classList.add('flex', 'items-center', 'gap-1');
             recent_room.dataset.channel = channel;
 
+            const match_id = channel.toLowerCase().startsWith('#mp_') ? channel.slice(4) : null;
+            const link = document.createElement('a');
+            link.classList.add('link', 'text-accent', 'flex-1', 'overflow-hidden', 'text-ellipsis', 'whitespace-nowrap');
+            link.textContent = channel;
+            link.title = match_id ? `View ${channel} match history` : channel;
+            if (match_id) {
+                link.href = `https://osu.ppy.sh/mp/${encodeURIComponent(match_id)}`;
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+            }
+
             const open = document.createElement('button');
-            open.classList.add('btn', 'btn-sm', 'btn-ghost', 'justify-start', 'flex-1', 'overflow-hidden');
+            open.classList.add('btn', 'btn-sm', 'btn-ghost');
             open.dataset.action = 'open';
-            open.textContent = channel;
+            open.textContent = 'Open';
             open.title = `Open ${channel}`;
 
             const remove = document.createElement('button');
@@ -425,6 +443,7 @@
             remove.textContent = '×';
             remove.title = `Remove ${channel}`;
 
+            recent_room.appendChild(link);
             recent_room.appendChild(open);
             recent_room.appendChild(remove);
             recent_rooms.appendChild(recent_room);
@@ -450,7 +469,12 @@
     function setPlayers(players) {
         const player_list = document.getElementById('players-list');
         player_list.replaceChildren();
-        Object.entries(players || {}).forEach(([username, state]) => {
+        const sorted_players = Object.entries(players || {}).sort(([first_name, first], [second_name, second]) => {
+            const first_slot = Number.isInteger(first.slot) ? first.slot : 99;
+            const second_slot = Number.isInteger(second.slot) ? second.slot : 99;
+            return first_slot - second_slot || first_name.localeCompare(second_name);
+        });
+        sorted_players.forEach(([username, state]) => {
             const row = document.createElement('div');
             row.classList.add('rounded', 'p-2', 'text-white');
             row.classList.add(state.team === 1 ? 'bg-red-500' : state.team === 2 ? 'bg-blue-500' : 'bg-neutral');
@@ -764,6 +788,8 @@
                 e.target.parentElement.classList.remove('tab-unread');
                 document.title = `${e.target.getAttribute('aria-label')} - TourniRC`;
                 emitAndResponse('tab_swap', channel).then((data) => {
+                    const selected = document.querySelector('input[name="tab"]:checked');
+                    if (!data || !selected || selected.dataset.channel.toLowerCase() !== data.channel.toLowerCase()) return;
                     if (data.messages) {
                         setMessages(data.messages);
                     }
@@ -944,6 +970,9 @@
         savelog.addEventListener('click', (e) => {
             socket.emit('send_msg', { content: '/savelog' });
         });
+    });
+    window.addEventListener('backend_ready', (event) => {
+        if (event.detail && event.detail.reset) resetChatSession();
         socket.emit('browser_ready');
     });
 </script>

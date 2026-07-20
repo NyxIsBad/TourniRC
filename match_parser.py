@@ -69,6 +69,10 @@ MODS = re.compile(
 )
 MOD_CHANGE = re.compile(r'^(?:Enabled|Disabled) .+$', re.IGNORECASE)
 MATCH_SIZE = re.compile(r'^Changed match to size (?P<size>[0-9]+)$')
+MOVE_SLOT = re.compile(
+    r'^(?P<username>.+?) moved to slot (?P<slot>[0-9]+)$',
+    re.IGNORECASE
+)
 HOST = re.compile(r'^(?P<username>.+?) became the host\.$', re.IGNORECASE)
 HOST_CHANGE = re.compile(r'^Changed match host to (?P<username>.+)$', re.IGNORECASE)
 CLEAR_HOST = re.compile(r'^Cleared match host$', re.IGNORECASE)
@@ -153,6 +157,14 @@ def parse_banchobot_message(content: str) -> Optional[MatchEvent]:
     match_size = MATCH_SIZE.fullmatch(content)
     if match_size:
         return MatchEvent(kind='match_size', size=int(match_size.group('size')))
+
+    move_slot = MOVE_SLOT.fullmatch(content)
+    if move_slot:
+        return MatchEvent(
+            kind='move_slot',
+            username=normalize_username(move_slot.group('username')),
+            slot=int(move_slot.group('slot'))
+        )
 
     for pattern in (HOST, HOST_CHANGE):
         host = pattern.fullmatch(content)

@@ -112,6 +112,9 @@
                 <div id="connection-message-warning" class="alert alert-warning hidden text-left">
                     <span><strong>BY THE WAY:</strong> Messages sent shortly before this disconnect may not have reached Bancho, even if they appeared in chat.</span>
                 </div>
+                <div id="backend-message-warning" class="alert alert-error hidden text-left">
+                    <span><strong>LOCAL SESSION LOST:</strong> If the backend was restarted, open tabs and chat history cannot be recovered.</span>
+                </div>
                 <p id="connection-detail">Establishing the IRC connection…</p>
                 <div class="card-actions mt-2 justify-center">
                     <button id="connection-retry" class="btn btn-primary">Retry now</button>
@@ -211,7 +214,7 @@
                     }
                     console.log('Theme:', theme);
                     document.documentElement.setAttribute('data-theme', theme);
-                    
+                    document.cookie = `theme=${encodeURIComponent(theme)}; path=/; max-age=31536000; SameSite=Lax`;
                     socket.emit('theme', {'theme': theme});
                 });
             });
@@ -224,24 +227,66 @@
                 data.type ? data.type : ''
             )
         });
+        let backendUnavailable = false;
+        let backendInstanceId = null;
+        let backendRestarted = false;
+        let backendHasCredentials = false;
+        let lastConnectionState = null;
+        let backendWarningTimer = null;
+        function clearBackendWarningTimer() {
+            if (!backendWarningTimer) return;
+            clearTimeout(backendWarningTimer);
+            backendWarningTimer = null;
+        }
+        function scheduleBackendUnavailable(reason) {
+            if (window.location.pathname === '/login' || backendWarningTimer) return;
+            backendWarningTimer = setTimeout(() => {
+                backendWarningTimer = null;
+                if (!socket.connected) showBackendUnavailable(reason);
+            }, 1500);
+        }
+        function showBackendUnavailable(reason) {
+            if (window.location.pathname === '/login') return;
+            backendUnavailable = true;
+            const overlay = document.getElementById('connection-overlay');
+            overlay?.classList.remove('hidden');
+            overlay?.classList.add('flex');
+            document.getElementById('connection-title').textContent = 'TourniRC backend disconnected';
+            document.getElementById('connection-detail').textContent = reason || 'The local backend cannot be reached. If its terminal was closed, restart TourniRC.';
+            document.getElementById('connection-message-warning')?.classList.add('hidden');
+            document.getElementById('backend-message-warning')?.classList.remove('hidden');
+            const retry = document.getElementById('connection-retry');
+            if (retry) retry.textContent = 'Retry now';
+            document.getElementById('connection-logout')?.classList.add('hidden');
+        }
         function updateConnectionState(data) {
+            lastConnectionState = data;
             const overlay = document.getElementById('connection-overlay');
             if (!overlay || window.location.pathname === '/login') return;
+            if (backendUnavailable) return;
 
+            const title = document.getElementById('connection-title');
+            const detail = document.getElementById('connection-detail');
+            if (!backendRestarted) document.getElementById('backend-message-warning')?.classList.add('hidden');
+            document.getElementById('connection-logout')?.classList.remove('hidden');
             if (data.state === 'authenticated') {
+                backendRestarted = false;
                 overlay.classList.add('hidden');
                 overlay.classList.remove('flex');
                 return;
             }
             if (data.state === 'logged_out') {
+                if (backendRestarted && backendHasCredentials) {
+                    title.textContent = 'TourniRC backend restarted';
+                    detail.textContent = 'The local backend is running again. Waiting for the IRC session to reconnect…';
+                    return;
+                }
                 window.location.assign('/login');
                 return;
             }
 
             overlay.classList.remove('hidden');
             overlay.classList.add('flex');
-            const title = document.getElementById('connection-title');
-            const detail = document.getElementById('connection-detail');
             const messageWarning = document.getElementById('connection-message-warning');
             messageWarning?.classList.toggle('hidden', data.state !== 'reconnecting');
             if (data.state === 'authentication_failed') {
@@ -257,7 +302,38 @@
             }
         }
         socket.on('connection_state', updateConnectionState);
-        document.getElementById('connection-retry')?.addEventListener('click', () => socket.emit('irc_retry'));
+        socket.on('disconnect', () => scheduleBackendUnavailable());
+        socket.on('connect_error', () => scheduleBackendUnavailable('The local backend cannot be reached. TourniRC will keep trying to reconnect.'));
+        socket.on('backend_identity', (data) => {
+            if (!data || typeof data.instance_id !== 'string') return;
+            const reset = backendInstanceId !== null && backendInstanceId !== data.instance_id;
+            backendInstanceId = data.instance_id;
+            backendRestarted = reset;
+            backendHasCredentials = Boolean(data.has_credentials);
+            backendUnavailable = false;
+            clearBackendWarningTimer();
+            if (reset) {
+                makeNotification('The TourniRC backend restarted. Open tabs and in-memory chat history were reset.', 10000, 'warning');
+            }
+            window.dispatchEvent(new CustomEvent('backend_ready', {detail: {reset: reset}}));
+            if (lastConnectionState) updateConnectionState(lastConnectionState);
+        });
+        socket.on('connect', () => {
+            clearBackendWarningTimer();
+            socket.emit('backend_identity_request');
+        });
+        if (socket.connected) {
+            socket.emit('backend_identity_request');
+        } else {
+            scheduleBackendUnavailable();
+        }
+        document.getElementById('connection-retry')?.addEventListener('click', () => {
+            if (backendUnavailable) {
+                socket.connect();
+            } else {
+                socket.emit('irc_retry');
+            }
+        });
         document.getElementById('connection-logout')?.addEventListener('click', () => socket.emit('logout'));
         socket.on('logout_complete', () => window.location.assign('/login'));
     </script>

@@ -5,6 +5,7 @@ from cfg import THEMES, roomsConfig, uiConfig, userConfig
 import json
 from typing import *
 import time
+import uuid
 
 import osu_irc
 from utils import *
@@ -28,6 +29,7 @@ connection_state = {
     'attempt': 0,
     'retry_in': 0
 }
+backend_instance_id = str(uuid.uuid4())
 pending_credentials = None
 UI_EVENTS = EventLog('ui', 'logs/ui-events.log')
 
@@ -283,11 +285,14 @@ class Chat():
         team = team_map[event.team]
         self.teams[user] = team
         player = self.players.setdefault(user, {})
+        player_mods = event.mods
+        if player_mods is None and self.mods:
+            player_mods = 'NoMod' if self.mods.casefold() == 'freemod' else self.mods
         player.update({
             'team': team,
             'ready': event.ready,
             'host': bool(event.host),
-            'mods': event.mods,
+            'mods': player_mods,
             'slot': event.slot
         })
         if event.host:
@@ -575,6 +580,14 @@ def handle_connect():
     if debug_flag:
         debug_connect()
 
+@socketio.on('backend_identity_request')
+def handle_backend_identity_request():
+    log_socket_event('backend_identity_request')
+    emit('backend_identity', {
+        'instance_id': backend_instance_id,
+        'has_credentials': user_cfg.has_credentials() or pending_credentials is not None
+    })
+
 @socketio.on('browser_ready')
 def handle_browser_ready():
     log_socket_event('browser_ready')
@@ -717,6 +730,9 @@ def handle_recv_msg(data: Dict[str, Any]):
         elif event.kind == 'mods':
             chat.mods = event.value
             chat.mods_host_unknown = bool(chat.host)
+            player_mods = 'NoMod' if event.value.casefold() == 'freemod' else event.value
+            for player in chat.players.values():
+                player['mods'] = player_mods
         elif event.kind == 'set_match':
             settings = [setting.strip() for setting in event.value.split(',')]
             if settings:
@@ -731,6 +747,10 @@ def handle_recv_msg(data: Dict[str, Any]):
                 chat.match_size = int(settings[2])
         elif event.kind == 'match_size':
             chat.match_size = event.size
+        elif event.kind == 'move_slot':
+            username = case_insensitive_get(chat.players, event.username)
+            if username:
+                chat.players[username]['slot'] = event.slot
         elif event.kind == 'host':
             chat.set_host(event.username)
             chat.mods_host_unknown = True
@@ -761,7 +781,7 @@ def handle_tab_swap(data: Dict[str, Any]):
     chats.set_current_chat(data['channel'])
     channel = chats.current_chat
     messages = chats.get_messages(channel)
-    emit('tab_swap_response', {
+    return {
         'alias': chats.get_chat(channel).alias,
         'channel': channel,
         'messages': messages,
@@ -772,7 +792,7 @@ def handle_tab_swap(data: Dict[str, Any]):
         'channel_info': chats.get_chat(channel).channel_info(),
         'recent_rooms': rms_cfg.rooms,
         'recent_rooms_limit': rms_cfg.max_rooms
-    })
+    }
 
 @socketio.on('tab_close')
 def handle_tab_close(data: Dict[str, Any]):

@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from cfg import roomsConfig, userConfig
+from cfg import roomsConfig, uiConfig, userConfig
 from osu_irc.Classes.client import Client
 from osu_irc.Classes.user import User
 from osu_irc.Utils.detector import mainEventDetector
@@ -217,6 +217,14 @@ class UserConfigTests(unittest.TestCase):
             loaded.set_max_rooms(999)
             self.assertEqual(50, loaded.max_rooms)
 
+    def test_theme_is_written_immediately(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'ui.ini'
+            config = uiConfig(str(path))
+            config.set_theme('cupcake')
+            self.assertEqual('cupcake', config.theme)
+            self.assertEqual('cupcake', uiConfig(str(path)).get_theme())
+
     def test_chat_template_uses_dom_nodes_for_untrusted_message_data(self):
         template = (Path(__file__).parents[1] / 'templates' / 'chat.html').read_text(encoding='utf-8')
         self.assertIn('appendMessageContent(content_element, content)', template)
@@ -226,7 +234,21 @@ class UserConfigTests(unittest.TestCase):
         self.assertIn('message_list.length > 0', template)
         self.assertIn("setupChannelHotkeys(getTabs)", template)
         self.assertIn("tab_input.dataset.channel = data.channel", template)
+        self.assertIn("window.addEventListener('backend_ready'", template)
+        self.assertIn('resetChatSession()', template)
+        self.assertIn("socket.emit(tag, { channel: channel }, function(data)", template)
+        self.assertIn("selected.dataset.channel.toLowerCase() !== data.channel.toLowerCase()", template)
+        self.assertIn("open.textContent = 'Open'", template)
+        self.assertIn('https://osu.ppy.sh/mp/${encodeURIComponent(match_id)}', template)
         self.assertNotIn('pinned', template.lower())
+
+        layout = (Path(__file__).parents[1] / 'templates' / 'layout.html').read_text(encoding='utf-8')
+        self.assertIn("socket.on('disconnect'", layout)
+        self.assertIn("socket.on('connect_error'", layout)
+        self.assertIn('scheduleBackendUnavailable', layout)
+        self.assertIn('}, 1500);', layout)
+        self.assertIn('LOCAL SESSION LOST:', layout)
+        self.assertIn('document.cookie = `theme=${encodeURIComponent(theme)}', layout)
 
 
 class UiSessionTests(unittest.TestCase):
@@ -273,6 +295,20 @@ class UiSessionTests(unittest.TestCase):
             [{'channel': '#mp_123', 'type': 1}, {'channel': 'BanchoBot', 'type': 2}],
             snapshot['chats']
         )
+
+    def test_backend_identity_is_stable_for_the_ui_process(self):
+        self.client.emit('backend_identity_request')
+        first = [
+            event['args'][0]['instance_id'] for event in self.client.get_received()
+            if event['name'] == 'backend_identity'
+        ]
+        self.client.emit('backend_identity_request')
+        second = [
+            event['args'][0]['instance_id'] for event in self.client.get_received()
+            if event['name'] == 'backend_identity'
+        ]
+        self.assertTrue(first[0])
+        self.assertEqual(first[0], second[0])
 
     def test_send_is_rejected_while_disconnected(self):
         self.client.get_received()
@@ -374,6 +410,31 @@ class UiSessionTests(unittest.TestCase):
         self.assertEqual(1, chat.channel_info()['player_count'])
         chat.remove_player('player')
         self.assertEqual({}, chat.teams)
+
+    def test_player_mods_and_slot_moves_follow_banchobot(self):
+        with patch.object(self.ui, 'emit'):
+            self.ui.chats.add_chat('#mp_123', 1)
+
+        def receive(content):
+            self.client.emit('recv_msg', {
+                'user_name': 'BanchoBot',
+                'room_name': 'mp_123',
+                'content': content,
+                'channel_type': 1,
+                'time_recv': 1000
+            })
+
+        receive('Active mods: Freemod')
+        receive('Players: 1')
+        receive('Slot 1  Not Ready https://osu.ppy.sh/u/10 Player One         ')
+        chat = self.ui.chats.get_chat('#mp_123')
+        self.assertEqual('NoMod', chat.players['Player_One']['mods'])
+        receive('Slot 1  Not Ready https://osu.ppy.sh/u/10 Player One         [NoFail, Hidden]')
+        self.assertEqual('NoFail, Hidden', chat.players['Player_One']['mods'])
+        receive('Player One moved to slot 3')
+        self.assertEqual(3, chat.players['Player_One']['slot'])
+        receive('Active mods: NoFail, SpunOut')
+        self.assertEqual('NoFail, SpunOut', chat.players['Player_One']['mods'])
 
     def test_banchobot_messages_update_match_state(self):
         with patch.object(self.ui, 'emit'):
