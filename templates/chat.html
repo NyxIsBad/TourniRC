@@ -305,14 +305,47 @@
             element.textContent = formatted_time;
         });
     }
-    function appendMessageContent(container, text) {
+    function getPlayerTeam(username, teams) {
+        const lower_username = String(username).toLowerCase();
+        for (const [player, team] of Object.entries(teams || {})) {
+            if (player.toLowerCase() === lower_username) return team;
+        }
+        return 0;
+    }
+    function appendHighlightedText(container, text, teams) {
+        const players = Object.keys(teams || {})
+            .filter(player => teams[player] === 1 || teams[player] === 2)
+            .sort((first, second) => second.length - first.length);
+        if (players.length === 0) {
+            container.appendChild(document.createTextNode(text));
+            return;
+        }
+        const escaped_players = players.map(player => player.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+        const player_regex = new RegExp(`(^|[^a-zA-Z0-9_])(${escaped_players.join('|')})(?=$|[^a-zA-Z0-9_])`, 'gi');
+        let position = 0;
+        let match;
+        while ((match = player_regex.exec(text)) !== null) {
+            const player_start = match.index + match[1].length;
+            container.appendChild(document.createTextNode(text.slice(position, player_start)));
+            const player = document.createElement('span');
+            const team = getPlayerTeam(match[2], teams);
+            player.classList.add('font-semibold', team === 1 ? 'text-red-500' : 'text-blue-500');
+            player.dataset.playerMention = match[2].toLowerCase();
+            player.textContent = match[2];
+            container.appendChild(player);
+            position = player_start + match[2].length;
+        }
+        container.appendChild(document.createTextNode(text.slice(position)));
+    }
+    function appendMessageContent(container, text, teams = {}) {
         // add links without trusting message html
         // match urls and [url text] patterns
         const urlRegex = /(https?:\/\/[^\s]+)|\[(https?:\/\/[^\s]+)\s+([^\]]+)\]/g;
+        text = String(text);
         let position = 0;
         let match;
-        while ((match = urlRegex.exec(String(text))) !== null) {
-            container.appendChild(document.createTextNode(String(text).slice(position, match.index)));
+        while ((match = urlRegex.exec(text)) !== null) {
+            appendHighlightedText(container, text.slice(position, match.index), teams);
             const link = document.createElement('a');
             link.classList.add('link', 'text-accent');
             link.href = match[1] || match[2];
@@ -323,19 +356,7 @@
             container.appendChild(link);
             position = urlRegex.lastIndex;
         }
-        container.appendChild(document.createTextNode(String(text).slice(position)));
-    }
-    function getUsernameMessages(username) {
-        const messages = document.getElementById('messages');
-        let lower_username = username.toLowerCase();
-        let matches = [];
-        messages.querySelectorAll('a').forEach((element) => {
-            console.log(element, element.textContent, lower_username+':');
-            if (element.textContent.toLowerCase() === lower_username+':') {
-                matches.push(element);
-            }
-        });
-        return matches;
+        appendHighlightedText(container, text.slice(position), teams);
     }
     function emitAndResponse(tag, channel) {
         return new Promise((resolve, reject) => {
@@ -361,11 +382,12 @@
         if (alias_dialog.open) alias_dialog.close();
         document.title = 'TourniRC';
     }
-    function makeMessage(time, user, content, team) {
+    function makeMessage(time, user, content, state = {}) {
         const message_element = document.createElement('div');
         const time_obj = new Date(time)
         const time_str = formatTime(time_obj);
         message_element.classList.add('flex', 'flex-wrap', 'items-start', 'overflow-x-hidden');
+        const team = state.author_team || 0;
         if (team === 1) {
             team_class = 'text-red-500';
         } else if (team === 2) {
@@ -392,8 +414,8 @@
         message_element.appendChild(user_element);
 
         const content_element = document.createElement('span');
-        content_element.classList.add('flex-1', 'overflow-hidden', 'text-ellipsis', 'whitespace-pre-wrap');
-        appendMessageContent(content_element, content);
+        content_element.classList.add('message-content', 'flex-1', 'overflow-hidden', 'text-ellipsis', 'whitespace-pre-wrap');
+        appendMessageContent(content_element, content, state.teams || {});
         message_element.appendChild(content_element);
 
         if (!keepTimestamps) {
@@ -404,10 +426,10 @@
     function setMessages(message_list) {
         const messages = document.getElementById('messages');
         clearMessages();
-        // messages is a list of lists with each list having time/user/content
+        // each message keeps the team state from when it arrived
         message_list.forEach(message => {
-            let [time, username, content] = message
-            let message_element = makeMessage(time, username, content);
+            let [time, username, content, state] = message
+            let message_element = makeMessage(time, username, content, state);
 
             messages.appendChild(message_element);
         });
@@ -498,7 +520,7 @@
 
             const details = document.createElement('p');
             details.classList.add('text-sm');
-            const ready = state.ready === true ? 'Ready' : state.ready === false ? 'Not Ready' : 'Ready: Unknown';
+            const ready = state.status || (state.ready === true ? 'Ready' : state.ready === false ? 'Not Ready' : 'Ready: Unknown');
             const mods = state.mods ? `Mods: ${state.mods}` : 'Mods: Unknown';
             const slot = state.slot ? `Slot ${state.slot}` : 'Slot: Unknown';
             details.textContent = `${slot} · ${ready} · ${mods}`;
@@ -548,25 +570,6 @@
         active_timer_type = info && info.active_timer;
         updateMatchTimer();
         setPlayers(players);
-    }
-    function setTeamColors(username, team) {
-        const related_messages = getUsernameMessages(username);
-        console.log(related_messages);
-        related_messages.forEach((element) => {
-            if (team === 0) {
-                // remove team color tags
-                element.classList.remove('text-red-500');
-                element.classList.remove('text-blue-500');
-            } else if (team === 1) {
-                // add team color tags
-                element.classList.remove('text-blue-500');
-                element.classList.add('text-red-500');
-            } else if (team === 2) {
-                // add team color tags
-                element.classList.remove('text-red-500');
-                element.classList.add('text-blue-500');
-            }
-        });
     }
     function findTab(channel) {
         // channel names should not go inside selectors
@@ -620,23 +623,13 @@
             let time = data.time;
             let username = data.user;
             let content = data.content;
-            let team = data.team
+            let state = data.state;
             // Create the message element
-            const message_element = makeMessage(time, username, content, team);
+            const message_element = makeMessage(time, username, content, state);
             messages.appendChild(message_element);
             if (keepScroll) {
                 scrollToBottom();
             }
-        });
-        socket.on('team_change', function(data) {
-            const selected_tab = document.querySelector('input[name="tab"]:checked');
-            if (!selected_tab) {
-                return;
-            }
-            if (selected_tab.dataset.channel !== data.channel) {
-                return;
-            }
-            setTeamColors(data.username, data.team);
         });
         socket.on('match_state', function(data) {
             const selected_tab = document.querySelector('input[name="tab"]:checked');
@@ -800,13 +793,6 @@
                     if (data.match_timer) {
                         // set start timer
                         start_input.value = data.match_timer;
-                    }
-                    if (data.teams) {
-                        // teams is json object. key is username, value is team
-                        let teams = JSON.parse(data.teams);
-                        for (let [username, team] of Object.entries(teams)) {
-                            setTeamColors(username, team);
-                        }
                     }
                     if (data.channel_info) {
                         setChannelInfo(data.channel_info, data.players || {});

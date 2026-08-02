@@ -20,10 +20,13 @@ class MatchEvent:
     seconds: Optional[int] = None
     slot: Optional[int] = None
     ready: Optional[bool] = None
+    status: Optional[str] = None
     host: Optional[bool] = None
     mods: Optional[str] = None
     map_id: Optional[str] = None
     size: Optional[int] = None
+    score: Optional[int] = None
+    passed: Optional[bool] = None
 
 
 # banchobot messages
@@ -37,7 +40,7 @@ SLOT = re.compile(
     re.IGNORECASE
 )
 SETTINGS_SLOT = re.compile(
-    r'^Slot\s+(?P<slot>[0-9]+)\s+(?P<ready>Ready|Not Ready)\s+'
+    r'^Slot\s+(?P<slot>[0-9]+)\s+(?P<ready>Ready|Not Ready|No Map)\s+'
     r'https://osu\.ppy\.sh/(?:u|users)/[0-9]+\s+(?P<username>[^\[]*?)'
     r'(?:\s+\[(?P<status>[^\]]*)\])?\s*$',
     re.IGNORECASE
@@ -88,6 +91,12 @@ COUNTDOWN = re.compile(
     r'^Countdown ends in (?P<count>[0-9]+) (?P<unit>seconds?|minutes?)$',
     re.IGNORECASE
 )
+PLAYER_FINISHED = re.compile(
+    r'^(?P<username>.+?) finished playing '
+    r'\(Score: (?P<score>[0-9]+), (?P<result>PASSED|FAILED)\)\.$',
+    re.IGNORECASE
+)
+MATCH_FINISHED = re.compile(r'^The match has finished!$', re.IGNORECASE)
 
 
 def normalize_username(username: str) -> str:
@@ -111,6 +120,12 @@ def parse_banchobot_message(content: str) -> Optional[MatchEvent]:
     settings_slot = SETTINGS_SLOT.fullmatch(content)
     if settings_slot:
         status = settings_slot.group('status') or ''
+        ready_status = settings_slot.group('ready')
+        ready = None
+        if ready_status.casefold() == 'ready':
+            ready = True
+        elif ready_status.casefold() == 'not ready':
+            ready = False
         team = re.search(r'\bTeam\s+(red|blue|none)\b', status, re.IGNORECASE)
         player_mods = re.sub(r'\bHost\b|\bTeam\s+(?:red|blue|none)\b', '', status, flags=re.IGNORECASE)
         player_mods = player_mods.replace('/', ' ').strip(' ,') or None
@@ -119,7 +134,8 @@ def parse_banchobot_message(content: str) -> Optional[MatchEvent]:
             username=normalize_username(settings_slot.group('username')),
             team=team.group(1).lower() if team else TEAM_NONE,
             slot=int(settings_slot.group('slot')),
-            ready=settings_slot.group('ready').casefold() == 'ready',
+            ready=ready,
+            status=ready_status.title(),
             host=bool(re.search(r'\bHost\b', status, re.IGNORECASE)),
             mods=player_mods
         )
@@ -232,6 +248,17 @@ def parse_banchobot_message(content: str) -> Optional[MatchEvent]:
         if countdown.group('unit').lower().startswith('minute'):
             seconds *= 60
         return MatchEvent(kind='match_timer', seconds=seconds)
+
+    player_finished = PLAYER_FINISHED.fullmatch(content)
+    if player_finished:
+        return MatchEvent(
+            kind='player_score',
+            username=normalize_username(player_finished.group('username')),
+            score=int(player_finished.group('score')),
+            passed=player_finished.group('result').casefold() == 'passed'
+        )
+    if MATCH_FINISHED.fullmatch(content):
+        return MatchEvent(kind='match_finished')
 
     if content.casefold() == 'countdown aborted':
         return MatchEvent(kind='countdown_abort')

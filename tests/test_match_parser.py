@@ -69,6 +69,13 @@ class MatchParserTests(unittest.TestCase):
         self.assertEqual(('HijiriS', 'red', 1), (event.username, event.team, event.slot))
         self.assertFalse(event.ready)
         self.assertTrue(event.host)
+        no_map = parse_banchobot_message(
+            'Slot 2  No Map    https://osu.ppy.sh/u/11007852 Poof            [Team Blue]'
+        )
+        self.assertEqual(('Poof', 'blue', 2, 'No Map'), (
+            no_map.username, no_map.team, no_map.slot, no_map.status
+        ))
+        self.assertIsNone(no_map.ready)
         h2h = parse_banchobot_message('HijiriS joined in slot 1.')
         self.assertEqual(('none', 1), (h2h.team, h2h.slot))
 
@@ -89,6 +96,18 @@ class MatchParserTests(unittest.TestCase):
         self.assertEqual(('2524734', 'Feint - Drifters [Light Insane]'), (
             beatmap.map_id, beatmap.value
         ))
+
+    def test_player_score_completion_is_parsed_without_calculating_results(self):
+        passed = parse_banchobot_message('Poof finished playing (Score: 18506, PASSED).')
+        failed = parse_banchobot_message('HijiriS finished playing (Score: 1032, FAILED).')
+        finished = parse_banchobot_message('The match has finished!')
+        self.assertEqual(('player_score', 'Poof', 18506, True), (
+            passed.kind, passed.username, passed.score, passed.passed
+        ))
+        self.assertEqual(('HijiriS', 1032, False), (
+            failed.username, failed.score, failed.passed
+        ))
+        self.assertEqual('match_finished', finished.kind)
 
 
 if __name__ == '__main__':

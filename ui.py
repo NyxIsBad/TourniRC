@@ -239,12 +239,30 @@ class Chat():
         self.active_timer = None
         self.timer_ends_at = None
         
-    def add_message(self, message: Dict[str, Any]) -> None:
+    def add_message(self, message: Dict[str, Any]) -> List:
         """
         Add a message to the chat channel.
         """
         if message['room_name'].casefold() == self.channel_name.casefold():
-            self.messages.append([message['time_recv']*1000, message['user_name'], message['content']])
+            teams = dict(self.teams)
+            for username, team in message.get('team_overrides', {}).items():
+                old_username = case_insensitive_get(teams, username)
+                if old_username and old_username != username:
+                    teams.pop(old_username)
+                teams[username] = team
+            author = case_insensitive_get(teams, message['user_name'])
+            state = {
+                'author_team': teams.get(author, TEAM_NONE),
+                'teams': teams
+            }
+            saved_message = [
+                message['time_recv']*1000,
+                message['user_name'],
+                message['content'],
+                state
+            ]
+            self.messages.append(saved_message)
+            return saved_message
         else:
             create_notif(f"Something has gone terribly wrong, code MSG-001", notif_type=NOTIF_TYPE_ERROR)
             raise ValueError(f"Message not in channel {self.channel_name}")
@@ -259,6 +277,7 @@ class Chat():
         player = self.players.setdefault(user, {
             'team': TEAM_NONE,
             'ready': None,
+            'status': None,
             'host': False,
             'mods': None,
             'slot': None
@@ -291,6 +310,7 @@ class Chat():
         player.update({
             'team': team,
             'ready': event.ready,
+            'status': event.status,
             'host': bool(event.host),
             'mods': player_mods,
             'slot': event.slot
@@ -318,7 +338,7 @@ class Chat():
         return {
             'kind': 'match' if is_match else 'pm' if is_pm else 'channel',
             'channel': self.channel_name,
-            'name': self.match_name or self.alias,
+            'name': self.match_name if is_match and self.match_name else self.channel_name,
             'url': f'https://osu.ppy.sh/mp/{self.match_id}' if is_match and self.match_id else
                    f'https://osu.ppy.sh/users/{self.channel_name}' if is_pm else None,
             'match_id': self.match_id,
@@ -450,15 +470,15 @@ class Chats():
         
         if message['room_name'] not in self.chats:
             self.add_chat(message['room_name'], message['channel_type'])
-        self.chats[message['room_name']].add_message(message)
+        saved_message = self.chats[message['room_name']].add_message(message)
 
         if self.current_chat == message['room_name']:
             self.chats[message['room_name']].unread = False
             emit('bounce_recv_msg', {
-                'time': message["time_recv"]*1000, # convert to ms
-                'user': message["user_name"],
-                'content': message["content"],
-                'team': self.chats[message['room_name']].teams.get(message["user_name"], TEAM_NONE)
+                'time': saved_message[0],
+                'user': saved_message[1],
+                'content': saved_message[2],
+                'state': saved_message[3]
             }, broadcast=True)
         else:
             chat = self.chats[message['room_name']]
@@ -691,10 +711,12 @@ def handle_recv_msg(data: Dict[str, Any]):
         data["room_name"] = f"#{data['room_name']}"
     if chats.username and data["room_name"].casefold() == chats.username.casefold():
         data["room_name"] = data["user_name"]
-    chats.add_message(data)
     # blocking, sounds, and match regex happen here
     # regex for team changes here (must be issued by banchobot)
     event = parse_match_message(data["user_name"], data["content"])
+    if event and event.kind in {'slot', 'join_slot', 'change_team'}:
+        data['team_overrides'] = {event.username: team_map[event.team]}
+    chats.add_message(data)
     if event:
         if event.kind == 'create_match':
             start_chat(f"#mp_{event.match_id}", osu_irc.CHANNEL_TYPE_ROOM)
@@ -759,6 +781,7 @@ def handle_recv_msg(data: Dict[str, Any]):
         elif event.kind == 'all_ready':
             for player in chat.players.values():
                 player['ready'] = True
+                player['status'] = 'Ready'
         elif event.kind == 'host_map':
             chat.mods = None
             chat.mods_host_unknown = True

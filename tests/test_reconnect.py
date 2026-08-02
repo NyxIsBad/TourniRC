@@ -227,7 +227,10 @@ class UserConfigTests(unittest.TestCase):
 
     def test_chat_template_uses_dom_nodes_for_untrusted_message_data(self):
         template = (Path(__file__).parents[1] / 'templates' / 'chat.html').read_text(encoding='utf-8')
-        self.assertIn('appendMessageContent(content_element, content)', template)
+        self.assertIn('appendMessageContent(content_element, content, state.teams || {})', template)
+        self.assertIn('appendHighlightedText(container, text, teams)', template)
+        self.assertIn("player.dataset.playerMention = match[2].toLowerCase()", template)
+        self.assertNotIn('refreshMessageHighlights()', template)
         self.assertIn('user_element.textContent = `${user}:`', template)
         self.assertNotIn('${urlify(content)}', template)
         self.assertNotIn('aria-label="${data.channel}"', template)
@@ -385,9 +388,19 @@ class UiSessionTests(unittest.TestCase):
         match = self.ui.Chat('#mp_123', 1)
         private = self.ui.Chat('BanchoBot', 2)
         channel = self.ui.Chat('#osu', 1)
+        match.set_alias('Finals Tab')
+        private.set_alias('Bot Tab')
+        channel.set_alias('Public Tab')
         self.assertEqual('https://osu.ppy.sh/mp/123', match.channel_info()['url'])
         self.assertEqual('https://osu.ppy.sh/users/BanchoBot', private.channel_info()['url'])
         self.assertIsNone(channel.channel_info()['url'])
+        self.assertEqual(('#mp_123', 'BanchoBot', '#osu'), (
+            match.channel_info()['name'],
+            private.channel_info()['name'],
+            channel.channel_info()['name']
+        ))
+        match.match_name = 'Original Match Name'
+        self.assertEqual('Original Match Name', match.channel_info()['name'])
         self.assertEqual(('match', 'pm', 'channel'), (
             match.channel_info()['kind'],
             private.channel_info()['kind'],
@@ -398,6 +411,24 @@ class UiSessionTests(unittest.TestCase):
         chat = self.ui.Chat('#mp_123', 1)
         with patch.object(self.ui, 'emit'):
             chat.team_change('Player', self.ui.TEAM_RED)
+        chat.add_message({
+            'room_name': '#mp_123',
+            'time_recv': 1,
+            'user_name': 'Player',
+            'content': 'Player is ready'
+        })
+        with patch.object(self.ui, 'emit'):
+            chat.team_change('Player', self.ui.TEAM_BLUE)
+        self.assertEqual(self.ui.TEAM_RED, chat.messages[0][3]['author_team'])
+        self.assertEqual(self.ui.TEAM_RED, chat.messages[0][3]['teams']['Player'])
+        chat.add_message({
+            'room_name': '#mp_123',
+            'time_recv': 2,
+            'user_name': 'BanchoBot',
+            'content': 'Slot 1 Player',
+            'team_overrides': {'Player': self.ui.TEAM_BLUE}
+        })
+        self.assertEqual(self.ui.TEAM_BLUE, chat.messages[1][3]['teams']['Player'])
         chat.match_name = 'Finals'
         chat.team_mode = 'TeamVs'
         chat.win_condition = 'ScoreV2'
@@ -435,6 +466,13 @@ class UiSessionTests(unittest.TestCase):
         self.assertEqual(3, chat.players['Player_One']['slot'])
         receive('Active mods: NoFail, SpunOut')
         self.assertEqual('NoFail, SpunOut', chat.players['Player_One']['mods'])
+        receive('Players: 1')
+        receive('Slot 2  No Map https://osu.ppy.sh/u/11 Poof [Team Blue]')
+        self.assertEqual(('No Map', 2, self.ui.TEAM_BLUE), (
+            chat.players['Poof']['status'],
+            chat.players['Poof']['slot'],
+            chat.players['Poof']['team']
+        ))
 
     def test_banchobot_messages_update_match_state(self):
         with patch.object(self.ui, 'emit'):
