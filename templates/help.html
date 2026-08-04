@@ -1,0 +1,22 @@
+{% extends "layout.html" %}
+{% block title %}Help{% endblock %}
+{% block content %}
+<div class="w-full max-w-5xl mx-auto p-4 lg:p-8 space-y-4">
+    <!-- short enough to read between maps, hopefully -->
+    <div class="card border border-base-content bg-base-100 shadow-xl"><div class="card-body">
+        <h1 class="card-title text-3xl">TourniRC Help</h1>
+        <p>TourniRC is an IRC client for osu. It's different from apl (not lazer), wyref (less automation), while trying to be more modern than c4o and brigitta. Originally made for personal use.</p>
+    </div></div>
+    <div class="grid gap-4 lg:grid-cols-2">
+        <!-- routine client behavior -->
+        <article class="card border border-base-content bg-base-100"><div class="card-body"><h2 class="card-title">Getting started</h2><p>Use your osu! username and IRC password from the Legacy API section of your osu! account settings. The saved password is kept in <code>cfg/login.ini</code>.</p><p>You can change your theme anytime top right.</p></div></article>
+        <article class="card border border-base-content bg-base-100"><div class="card-body"><h2 class="card-title">Rooms and tabs</h2><p>Open channels with <code>/query #channel</code> or users with <code>/query username</code>. (can also press the Add Channel button in actions) Double-click a tab to rename it locally. Drag tabs to reorder them.</p><p>Recent Rooms stores only MP rooms and channels. Its limit is configured in Settings.</p></div></article>
+        <article class="card border border-base-content bg-base-100"><div class="card-body"><h2 class="card-title">Connection</h2><p>TourniRC reconnects to Bancho and rejoins room channels while its backend remains open. If the backend itself dies/restarts, in-memory tabs and history are lost.</p><div class="alert alert-warning"><span>IRC has no message acknowledgement, so messages sent by you immediately before a disconnect may not actually sent. Because there's no way to see if Bancho actually got them, you'll have to resend them maybe</span></div></div></article>
+        <article class="card border border-base-content bg-base-100"><div class="card-body"><h2 class="card-title">Local commands</h2><ul class="list-disc pl-5"><li><code>/query &lt;room or user&gt;</code></li><li><code>/part [room]</code></li><li><code>/clear</code></li><li><code>/timer [seconds]</code></li><li><code>/matchtimer [seconds]</code></li><li><code>/savelog [room]</code></li></ul><p>There are aliases for these, which you can find in Settings, and you can change; but command aliases can only point to these default local commands. You can define new command macros (which send things in chat), along with changing the existing hotkeys in settings. New macros can be also optionally added to the Action bar. They can only be run by you, and you can define them into slash commands too.</p></div></article>
+        <article class="card border border-base-content bg-base-100"><div class="card-body"><h2 class="card-title">Blocking</h2><p>The PM block list suppresses blocked private messages, tabs, unread indicators, and sounds. A red notice tells you if they message you</p></div></article>
+        <article class="card border border-base-content bg-base-100"><div class="card-body"><h2 class="card-title">Sound alerts</h2><p>Upload MP3, WAV, or OGG files with limit 5mb, or use the original audio samples (ripped from Brigitta). Triggers can use literal text or regex (it's pythex), sender filters, case sensitivity, and channel scope. You gotta add these yourself</p></div></article>
+        <!-- assists the ref, does not become the ref -->
+        <article class="card border border-base-content bg-base-100 lg:col-span-2"><div class="card-body"><h2 class="card-title">Referee controls</h2><p>Match controls send the command displayed by their title. Player and match information comes from BanchoBot and may remain unknown until you request <code>!mp settings</code>, so generally run it often</p></div></article>
+    </div>
+</div>
+{% endblock %}

@@ -41,6 +41,7 @@
                         class="menu menu-sm dropdown-content bg-base-100 rounded-box z-[1] mt-3 w-52 p-2 shadow">
                         <li><a href="/">Chat</a></li>
                         <li><a href="/settings">Settings</a></li>
+                        <li><a href="/help">Help</a></li>
                     </ul>
                 </div>
                 <a class="btn btn-ghost text-xl">TourniRC</a>
@@ -49,6 +50,7 @@
                 <ul class="menu menu-horizontal px-1">
                     <li><a href="/">Chat</a></li>
                     <li><a href="/settings">Settings</a></li>
+                    <li><a href="/help">Help</a></li>
                 </ul>
             </div>
             <div class="navbar-end">
@@ -125,71 +127,70 @@
     </div>
     <!-- JavaScript to handle theme switching and persistence -->
     <script>
-        function makeNotification(content, duration, type) {
-            const alert_element = document.createElement("div");
+        const keyedToasts = new Map();
+        function makeNotification(content, duration, type, options = {}) {
+            // keyed toasts update instead of breeding in the corner
             const toasts = document.getElementById('toasts');
-            // Can be info, success, warning, and error, blank for default
+            let alert_element = options.key ? keyedToasts.get(options.key) : null;
+            if (alert_element && !alert_element.isConnected) alert_element = null;
+            if (!alert_element) {
+                alert_element = document.createElement('div');
+                alert_element.innerHTML = '<div class="flex flex-wrap items-start overflow-x-hidden justify-between w-72"></div><progress class="progress w-72 mt-2" value="0" max="100"></progress>';
+                toasts.appendChild(alert_element);
+                if (options.key) keyedToasts.set(options.key, alert_element);
+            }
             alert_element.className = `alert alert-${type} flex flex-col opacity-0 transition-opacity duration-500`;
-            // For the daisy UI compiler
             // alert-info alert-success alert-warning alert-error
-            alert_element.innerHTML = `
-                <div class="flex flex-wrap items-start overflow-x-hidden justify-between w-56">
-                </div>
-                <progress class="progress w-56 mt-2" value="0" max="100"></progress>
-            `;
-
             const div = alert_element.querySelector('div');
-
-            // Create and append the span element
+            div.replaceChildren();
             const span = document.createElement('span');
             span.classList.add('self-start', 'overflow-hidden', 'text-ellipsis', 'flex-1', 'whitespace-pre-wrap', 'mr-2');
-            span.innerText = content;  // Set as innerText
-
-            // Create and append the button element
+            span.textContent = content;
+            div.appendChild(span);
+            (options.actions || []).forEach(action => {
+                // confirmation stays local; no mystery server callback
+                const actionButton = document.createElement('button');
+                actionButton.className = action.className || 'btn btn-sm';
+                actionButton.textContent = action.label;
+                actionButton.addEventListener('click', () => {
+                    action.onClick();
+                    dismissNotification(alert_element, options.key);
+                });
+                div.appendChild(actionButton);
+            });
             const button = document.createElement('button');
             button.classList.add('whitespace-nowrap', 'self-center', 'toast-close', 'mr-1');
             button.setAttribute('aria-label', 'Close');
-            button.innerHTML = '&times;';
-
-            div.appendChild(span);
+            button.textContent = '×';
             div.appendChild(button);
-
-            toasts.appendChild(alert_element);
-
-            // Close button
-            const close_button = alert_element.querySelector('.toast-close');
-            close_button.addEventListener('click', () => {
-                alert_element.classList.remove('opacity-100');
-                alert_element.classList.add('opacity-0');
-                setTimeout(() => {
-                    alert_element.remove();
-                }, 500);
-            });
-            
+            button.addEventListener('click', () => dismissNotification(alert_element, options.key));
+            clearTimeout(alert_element.dismissTimer);
+            clearInterval(alert_element.progressTimer);
             setTimeout(() => {
                 alert_element.classList.remove('opacity-0');
                 alert_element.classList.add('opacity-100');
             }, 10);
-
             const progress_bar = alert_element.querySelector('.progress');
-            const interval = 10; // ms between each update
-            const increment = 100 / (duration / interval);
+            progress_bar.classList.toggle('hidden', options.persistent === true);
+            progress_bar.value = 0;
             let progress = 0;
-            const timer = setInterval(() => {
-                progress += increment;
-                progress_bar.value = progress;
-                if (progress >= 100) {
-                    clearInterval(timer);
-                }
-            }, interval);
-
-            setTimeout(() => {
-                alert_element.classList.remove('opacity-100');
-                alert_element.classList.add('opacity-0');
-                setTimeout(() => {
-                    alert_element.remove();
-                }, 500);
-            }, duration);
+            if (!options.persistent) {
+                alert_element.progressTimer = setInterval(() => {
+                    progress += 100 / (duration / 50);
+                    progress_bar.value = progress;
+                    if (progress >= 100) clearInterval(alert_element.progressTimer);
+                }, 50);
+                alert_element.dismissTimer = setTimeout(() => dismissNotification(alert_element, options.key), duration);
+            }
+            return alert_element;
+        }
+        function dismissNotification(element, key) {
+            clearTimeout(element.dismissTimer);
+            clearInterval(element.progressTimer);
+            element.classList.remove('opacity-100');
+            element.classList.add('opacity-0');
+            if (key) keyedToasts.delete(key);
+            setTimeout(() => element.remove(), 500);
         }
         function debug_func(data) {
             socket.emit('debug', {'data': data});
@@ -227,6 +228,20 @@
                 data.type ? data.type : ''
             )
         });
+        socket.on('blocked_pm', function(data) {
+            const content = data.count === 1
+                ? `Blocked a private message from ${data.sender}.`
+                : `Blocked ${data.count} private messages from ${data.sender}.`;
+            makeNotification(content, 5000, 'error', {key: `blocked:${data.key}`});
+        });
+        socket.on('play_sounds', function(data) {
+            // browsers may reject autoplay. their problem, quietly.
+            (data.sounds || []).forEach(sound => {
+                const audio = new Audio(sound.url);
+                audio.volume = Math.max(0, Math.min(Number(sound.volume) || 0, 1));
+                audio.play().catch(error => console.warn('Sound playback failed:', error));
+            });
+        });
         let backendUnavailable = false;
         let backendInstanceId = null;
         let backendRestarted = false;
@@ -239,6 +254,7 @@
             backendWarningTimer = null;
         }
         function scheduleBackendUnavailable(reason) {
+            // page navigation looks disconnected for a moment, because of course it does
             if (window.location.pathname === '/login' || backendWarningTimer) return;
             backendWarningTimer = setTimeout(() => {
                 backendWarningTimer = null;

@@ -58,6 +58,7 @@ pyzmq==26.1.0
 referencing==0.35.1
 requests==2.32.3
 requests-oauthlib==2.0.0
+regex==2024.11.6
 rpds-py==0.20.0
 simple-websocket==1.0.0
 six==1.16.0

@@ -11,6 +11,8 @@ from osu_irc.Utils.detector import mainEventDetector
 from osu_irc.Utils.errors import EmptyPayload, PingTimeout
 from irclib import Client as TourniRCClient
 from eventlog import _sanitize
+from settings import SettingsRepository
+from sounds import SoundStore
 
 
 class FakeReader:
@@ -235,7 +237,7 @@ class UserConfigTests(unittest.TestCase):
         self.assertNotIn('${urlify(content)}', template)
         self.assertNotIn('aria-label="${data.channel}"', template)
         self.assertIn('message_list.length > 0', template)
-        self.assertIn("setupChannelHotkeys(getTabs)", template)
+        self.assertIn("setupChannelHotkeys(getTabs, () => document.querySelector", template)
         self.assertIn("tab_input.dataset.channel = data.channel", template)
         self.assertIn("window.addEventListener('backend_ready'", template)
         self.assertIn('resetChatSession()', template)
@@ -260,9 +262,18 @@ class UiSessionTests(unittest.TestCase):
         self.ui = ui
         self.original_user_cfg = ui.user_cfg
         self.original_rooms_cfg = ui.rms_cfg
+        self.original_settings_cfg = ui.settings_cfg
+        self.original_sound_store = ui.sound_store
         self.temp_dir = tempfile.TemporaryDirectory()
         ui.user_cfg = userConfig(str(Path(self.temp_dir.name) / 'login.ini'))
         ui.rms_cfg = roomsConfig(str(Path(self.temp_dir.name) / 'recentrooms.ini'))
+        ui.settings_cfg = SettingsRepository(
+            str(Path(self.temp_dir.name) / 'settings.json'),
+            str(Path(self.temp_dir.name) / 'ui.ini'),
+            str(Path(self.temp_dir.name) / 'recentrooms.ini')
+        )
+        ui.sound_store = SoundStore(str(Path(self.temp_dir.name) / 'sounds'))
+        ui.blocked_pm_notices.clear()
         ui.chats.clear()
         ui.pending_credentials = None
         ui.connection_state.clear()
@@ -273,6 +284,8 @@ class UiSessionTests(unittest.TestCase):
         self.client.disconnect()
         self.ui.user_cfg = self.original_user_cfg
         self.ui.rms_cfg = self.original_rooms_cfg
+        self.ui.settings_cfg = self.original_settings_cfg
+        self.ui.sound_store = self.original_sound_store
         self.temp_dir.cleanup()
 
     def test_login_validates_and_persists_credentials(self):
@@ -356,6 +369,27 @@ class UiSessionTests(unittest.TestCase):
         self.assertTrue(self.ui.chats.get_chat('#two').unread)
         self.client.emit('tab_swap', {'channel': '#TWO'}, callback=True)
         self.assertFalse(self.ui.chats.get_chat('#two').unread)
+
+    def test_blocked_pm_never_reaches_chat_state_or_sound_triggers(self):
+        chat = self.ui.settings_cfg.snapshot()['chat']
+        chat['blocked_users'] = ['Noisy User']
+        self.ui.settings_cfg.update_section('chat', chat)
+        audio = self.ui.settings_cfg.snapshot()['audio']
+        audio['triggers'] = [{
+            'name': 'blocked sound', 'enabled': True, 'mode': 'literal',
+            'pattern': 'hello', 'case_sensitive': False, 'sender': '',
+            'scope': 'pm', 'asset_id': 'builtin:nice.mp3'
+        }]
+        self.ui.settings_cfg.update_section('audio', audio)
+        self.client.get_received()
+        self.client.emit('recv_msg', {
+            'user_name': 'Noisy_User', 'room_name': 'Referee', 'content': 'hello',
+            'channel_type': 2, 'time_recv': 1.0
+        })
+        events = self.client.get_received()
+        self.assertTrue(any(event['name'] == 'blocked_pm' for event in events))
+        self.assertFalse(any(event['name'] == 'play_sounds' for event in events))
+        self.assertIsNone(self.ui.chats.get_chat('Noisy_User'))
 
     def test_alias_and_tab_order_are_display_state_only(self):
         with patch.object(self.ui, 'emit'):

@@ -1,6 +1,7 @@
 from typing import *
 from datetime import datetime
 
+# log timestamps use a fake common date so they can still be compared
 def mtime(time: str) -> float:
     """
     Convert a time string in the format of HH:MM:SS to a timestamp compatible with time.time()

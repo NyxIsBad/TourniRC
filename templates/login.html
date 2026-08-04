@@ -47,7 +47,7 @@
     </div>
 </div>
 <script>
-    // Login
+    // the backend decides when these are worth saving
     document.getElementById('login-button').addEventListener('click', () => {
         const username = document.getElementById('login-username');
         const password = document.getElementById('login-password');
@@ -67,7 +67,7 @@
         document.getElementById('login-button').disabled = false;
         makeNotification(data.error || "Unable to log in", 5000, "error");
     });
-    // Enter key
+    // enter key, because clicking every time would be stupid
     document.addEventListener('keydown', (e) => {
         // If we are in the username or password input
         if (document.activeElement.tagName === 'INPUT') {

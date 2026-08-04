@@ -1,6 +1,8 @@
-from flask import Flask, render_template, redirect, url_for
+from flask import Flask, render_template, redirect, url_for, request, send_file, jsonify
 from flask_socketio import SocketIO, emit
 from cfg import THEMES, roomsConfig, uiConfig, userConfig
+from settings import SettingsRepository, SettingsError, normalize_username
+from sounds import SoundStore, available_assets, matching_sounds
 
 import json
 from typing import *
@@ -14,9 +16,12 @@ from match_parser import parse_match_message
 
 app = Flask(__name__)
 socketio = SocketIO(app)
+settings_cfg = SettingsRepository()
 ui_cfg = uiConfig()
-rms_cfg = roomsConfig()
+rms_cfg = roomsConfig(max_rooms=settings_cfg.data['chat']['room_history_limit'])
+rms_cfg.set_max_rooms(settings_cfg.data['chat']['room_history_limit'])
 user_cfg = userConfig()
+sound_store = SoundStore()
 
 IRC_STATE_CONNECTING = 'connecting'
 IRC_STATE_AUTHENTICATED = 'authenticated'
@@ -62,6 +67,14 @@ def emit_match_state(chat) -> None:
         'players': chat.players
     }, broadcast=True)
 
+def settings_payload() -> Dict[str, Any]:
+    payload = settings_cfg.snapshot()
+    payload['audio']['available_assets'] = available_assets(payload)
+    return payload
+
+def settings_result(ok=True, data=None, errors=None) -> Dict[str, Any]:
+    return {'ok': ok, 'data': data, 'errors': errors or []}
+
 TEAM_RED = 1
 TEAM_BLUE = 2
 TEAM_NONE = 0
@@ -78,11 +91,7 @@ team_map = {
     'none': TEAM_NONE
 }
 
-# TODO: Implement cfg for this and settings, and make it PMs only
-debug_block_list = [
-    "BLOCKED_USER_DEBUG"
-]
-debug_block_list = [name.lower() for name in debug_block_list]
+blocked_pm_notices = {}
 
 debug_flag = False
 
@@ -133,20 +142,15 @@ def command_parse(command: str) -> None:
     command = parts[0].lower()
     args = parts[1:]
 
-    aliases = {
-        "/q": "/query",
-        "/pm": "/query",
-        "/chat": "/query",
-        "/join": "/query",
-        "/l": "/part",
-        "/leave": "/part",
-        "/close": "/part",
-        "/t": "/timer",
-        "/mt": "/matchtimer",
-        "/s": "/savelog"
-    }
-
-    command = aliases.get(command, command)
+    alias_type, alias_value = settings_cfg.resolve_alias(command)
+    if alias_type == 'command':
+        command = alias_value
+    elif alias_type == 'macro':
+        if alias_value['confirm']:
+            emit('macro_confirmation', alias_value)
+            return
+        handle_send_msg({'content': alias_value['command']})
+        return
     if command != "/query" and chats.current_chat is None:
         create_notif("No chat open.", notif_type=NOTIF_TYPE_WARNING)
         return
@@ -574,6 +578,34 @@ def settings():
     cur_theme = ui_cfg.get_theme()
     return render_template('settings.html', cur_theme=cur_theme, themes=THEMES)
 
+@app.route('/help')
+def help_page():
+    cur_theme = ui_cfg.get_theme()
+    return render_template('help.html', cur_theme=cur_theme, themes=THEMES)
+
+@app.route('/sounds/<asset_id>')
+def custom_sound(asset_id):
+    asset = next((item for item in settings_cfg.data['audio']['assets'] if item['id'] == asset_id), None)
+    if not asset:
+        return '', 404
+    path = sound_store.path_for(asset)
+    return send_file(path) if path.exists() else ('', 404)
+
+@app.route('/api/sounds', methods=['POST'])
+def upload_sound():
+    upload = request.files.get('sound')
+    if not upload:
+        return jsonify({'ok': False, 'errors': ['No sound file was provided.']}), 400
+    try:
+        asset = sound_store.save(upload)
+        audio = settings_cfg.snapshot()['audio']
+        audio['assets'].append(asset)
+        settings_cfg.update_section('audio', audio)
+        socketio.emit('settings_changed', settings_payload())
+        return jsonify({'ok': True, 'data': asset, 'errors': []})
+    except (ValueError, SettingsError) as error:
+        return jsonify({'ok': False, 'errors': [str(error)]}), 400
+
 # ---------------------
 # Layout SIO Routes
 # ---------------------
@@ -586,9 +618,87 @@ def set_theme(data: Dict[str, Any]):
     theme: str = data.get('theme', 'dark')
     if theme in THEMES:
         ui_cfg.set_theme(theme)
+        appearance = settings_cfg.snapshot()['appearance']
+        appearance['theme'] = theme
+        settings_cfg.update_section('appearance', appearance)
     else:
         # I'd be shocked if this ever happens; it means the user edited some code and didn't know what they were doing
         raise ValueError(f"Theme {theme} not found.")
+
+@socketio.on('settings_get')
+def handle_settings_get():
+    log_socket_event('settings_get')
+    return settings_result(data=settings_payload())
+
+@socketio.on('settings_update')
+def handle_settings_update(data: Dict[str, Any]):
+    log_socket_event('settings_update', data)
+    if not valid_payload('settings_update', data, {'section': str, 'value': dict}):
+        return settings_result(False, errors=['Invalid settings request.'])
+    try:
+        if data['section'] == 'chat':
+            blocked = data['value'].get('blocked_users', [])
+            forbidden = {'banchobot'}
+            if chats.username:
+                forbidden.add(normalize_username(chats.username))
+            if any(normalize_username(username) in forbidden for username in blocked):
+                raise SettingsError('BanchoBot and your own account cannot be blocked.')
+        settings_cfg.update_section(data['section'], data['value'])
+        if data['section'] == 'chat':
+            rms_cfg.set_max_rooms(settings_cfg.data['chat']['room_history_limit'])
+            emit_recent_rooms()
+        payload = settings_payload()
+        emit('settings_changed', payload, broadcast=True)
+        return settings_result(data=payload)
+    except SettingsError as error:
+        return settings_result(False, errors=[str(error)])
+
+@socketio.on('settings_reset')
+def handle_settings_reset(data: Dict[str, Any]):
+    log_socket_event('settings_reset', data)
+    if not valid_payload('settings_reset', data, {'section': str}):
+        return settings_result(False, errors=['Invalid reset request.'])
+    try:
+        settings_cfg.reset_section(data['section'])
+        rms_cfg.set_max_rooms(settings_cfg.data['chat']['room_history_limit'])
+        payload = settings_payload()
+        emit('settings_changed', payload, broadcast=True)
+        emit_recent_rooms()
+        return settings_result(data=payload)
+    except SettingsError as error:
+        return settings_result(False, errors=[str(error)])
+
+@socketio.on('sound_delete')
+def handle_sound_delete(data: Dict[str, Any]):
+    log_socket_event('sound_delete', data)
+    if not valid_payload('sound_delete', data, {'id': str}):
+        return settings_result(False, errors=['Invalid sound request.'])
+    audio = settings_cfg.snapshot()['audio']
+    asset = next((item for item in audio['assets'] if item['id'] == data['id']), None)
+    if not asset:
+        return settings_result(False, errors=['Sound not found.'])
+    if any(trigger['asset_id'] == asset['id'] for trigger in audio['triggers']):
+        return settings_result(False, errors=['This sound is used by a trigger.'])
+    sound_store.delete(asset)
+    audio['assets'].remove(asset)
+    settings_cfg.update_section('audio', audio)
+    payload = settings_payload()
+    emit('settings_changed', payload, broadcast=True)
+    return settings_result(data=payload)
+
+@socketio.on('run_macro')
+def handle_run_macro(data: Dict[str, Any]):
+    log_socket_event('run_macro', data)
+    if not valid_payload('run_macro', data, {'id': str}):
+        return settings_result(False, errors=['Invalid macro request.'])
+    macro = settings_cfg.find_macro(data['id'])
+    if not macro:
+        return settings_result(False, errors=['Macro not found.'])
+    payload = {'content': macro['command']}
+    if isinstance(data.get('channel'), str):
+        payload['channel'] = data['channel']
+    handle_send_msg(payload)
+    return settings_result(data={'id': macro['id']})
 
 # ---------------------
 # Chat SIO Routes
@@ -705,18 +815,30 @@ def handle_recv_msg(data: Dict[str, Any]):
     if data['channel_type'] not in {osu_irc.CHANNEL_TYPE_ROOM, osu_irc.CHANNEL_TYPE_PM}:
         UI_EVENTS.write('invalid_socket_payload', name='recv_msg', data=data)
         return
-    if data["user_name"].lower() in debug_block_list:
-        return
     if data["channel_type"] == osu_irc.CHANNEL_TYPE_ROOM:
         data["room_name"] = f"#{data['room_name']}"
     if chats.username and data["room_name"].casefold() == chats.username.casefold():
         data["room_name"] = data["user_name"]
+    if data['channel_type'] == osu_irc.CHANNEL_TYPE_PM and settings_cfg.is_blocked(data['user_name']):
+        sender = data['user_name']
+        key = normalize_username(sender)
+        now = time.monotonic()
+        previous = blocked_pm_notices.get(key)
+        count = previous['count'] + 1 if previous and now - previous['time'] <= 120 else 1
+        blocked_pm_notices[key] = {'time': now, 'count': count}
+        emit('blocked_pm', {'sender': sender, 'count': count, 'key': key}, broadcast=True)
+        return
     # blocking, sounds, and match regex happen here
     # regex for team changes here (must be issued by banchobot)
     event = parse_match_message(data["user_name"], data["content"])
     if event and event.kind in {'slot', 'join_slot', 'change_team'}:
         data['team_overrides'] = {event.username: team_map[event.team]}
     chats.add_message(data)
+    sounds = matching_sounds(
+        settings_cfg.data, data['user_name'], data['content'], data['room_name'], data['channel_type']
+    )
+    if sounds:
+        emit('play_sounds', {'sounds': sounds}, broadcast=True)
     if event:
         if event.kind == 'create_match':
             start_chat(f"#mp_{event.match_id}", osu_irc.CHANNEL_TYPE_ROOM)
@@ -864,6 +986,9 @@ def handle_recent_rooms_limit(data: Dict[str, Any]):
     if not valid_payload('recent_rooms_limit', data, {'limit': (int, str)}):
         return
     rms_cfg.set_max_rooms(data['limit'])
+    chat_settings = settings_cfg.snapshot()['chat']
+    chat_settings['room_history_limit'] = rms_cfg.max_rooms
+    settings_cfg.update_section('chat', chat_settings)
     emit_recent_rooms()
 
 # ---------------------

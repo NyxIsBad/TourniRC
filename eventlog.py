@@ -22,6 +22,7 @@ def _sanitize(value: Any, key: str = '') -> Any:
     if isinstance(value, bytes):
         value = value.decode('utf-8', errors='replace')
     if isinstance(value, str) and value.lstrip().upper().startswith('PASS '):
+        # raw irc gets the same treatment as structured fields
         return 'PASS [REDACTED]'
     if isinstance(value, BaseException):
         return {'type': value.__class__.__name__, 'message': str(value)}
@@ -39,6 +40,7 @@ class EventLog:
         self.logger.setLevel(logging.INFO)
         self.logger.propagate = False
         if not self.logger.handlers:
+            # three backups is enough evidence without eating the drive
             handler = RotatingFileHandler(
                 filename, maxBytes=5 * 1024 * 1024, backupCount=3, encoding='utf-8'
             )
@@ -46,6 +48,7 @@ class EventLog:
             self.logger.addHandler(handler)
 
     def write(self, event: str, **fields: Any) -> None:
+        # one event per line keeps this grep-friendly
         record = {
             'timestamp': datetime.now(timezone.utc).isoformat(),
             'process_id': os.getpid(),

@@ -1,4 +1,5 @@
 import gevent.monkey
+# socketio needs this before anything gets clever with threads
 gevent.monkey.patch_all()
 
 import asyncio
@@ -33,6 +34,7 @@ if __name__ == "__main__":
     We choose UI because IRC as currently written needs the MainThread event loop
     """
     multiprocessing.freeze_support()
+    # irc owns the main process; flask gets the spare one
     ui_process = multiprocessing.Process(target=ui.prod_run)
     ui_process.start()
 

@@ -11,6 +11,7 @@ VALID_TEAMS = {TEAM_NONE, TEAM_RED, TEAM_BLUE}
 
 @dataclass(frozen=True)
 class MatchEvent:
+    # one deliberately boring envelope for every bot response
     kind: str
     username: Optional[str] = None
     team: Optional[str] = None
@@ -109,6 +110,7 @@ def parse_banchobot_message(content: str) -> Optional[MatchEvent]:
     if not isinstance(content, str):
         return None
 
+    # match creation can arrive outside the room it creates
     create = CREATE_MATCH.fullmatch(content)
     if create:
         return MatchEvent(
@@ -117,6 +119,7 @@ def parse_banchobot_message(content: str) -> Optional[MatchEvent]:
             match_name=create.group('match_name')
         )
 
+    # full settings has the useful slot, readiness, host, and mod details
     settings_slot = SETTINGS_SLOT.fullmatch(content)
     if settings_slot:
         status = settings_slot.group('status') or ''
@@ -150,6 +153,7 @@ def parse_banchobot_message(content: str) -> Optional[MatchEvent]:
             host=bool(re.search(r'\bHost\b', slot.group('status'), re.IGNORECASE))
         )
 
+    # short live updates do not repeat the whole settings block
     for kind, pattern in (
         ('join_slot', JOIN_SLOT),
         ('change_team', CHANGE_TEAM)
@@ -249,6 +253,7 @@ def parse_banchobot_message(content: str) -> Optional[MatchEvent]:
             seconds *= 60
         return MatchEvent(kind='match_timer', seconds=seconds)
 
+    # save the raw result now; calculating winners is tournament territory
     player_finished = PLAYER_FINISHED.fullmatch(content)
     if player_finished:
         return MatchEvent(

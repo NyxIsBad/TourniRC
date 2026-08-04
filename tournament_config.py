@@ -4,6 +4,7 @@ from typing import Dict
 
 
 # TODO: replace this with the preset database
+# legacy only. core chat should never depend on this surviving.
 class Tournaments():
     def __init__(self):
         self.tournaments: Dict[str, tourneyConfig] = {}

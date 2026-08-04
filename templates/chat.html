@@ -177,6 +177,7 @@
                 <input type="checkbox" name="accordion" />
                 <div class="collapse-title text-lg font-medium">Actions</div>
                 <div class="collapse-content">
+                    <div id="macro-buttons" class="flex flex-wrap gap-2 mb-3"></div>
                     <!-- row 1 -->
                     <div class="flex flex-row items-start w-[30vw]">
                         <button id="timezone-btn" class="btn btn-circle btn-outline justify-self-end text-error mr-2" title="Use Local Time">
@@ -244,12 +245,7 @@
                 <input type="checkbox" name="accordion" />
                 <div class="collapse-title text-lg font-medium">Recent Rooms</div>
                 <div class="collapse-content">
-                    <div class="flex items-end gap-2 mb-2">
-                        <label class="form-control flex-1">
-                            <span class="label-text mb-1">Saved Rooms</span>
-                            <input id="recent-rooms-limit" type="number" min="1" max="50" class="input input-bordered input-sm" />
-                        </label>
-                        <button id="recent-rooms-limit-save" class="btn btn-sm btn-primary">Save</button>
+                    <div class="flex justify-end mb-2">
                         <button id="recent-rooms-clear" class="btn btn-sm btn-outline btn-error">Clear</button>
                     </div>
                     <div id="recent-rooms" class="flex flex-col gap-1">
@@ -470,7 +466,6 @@
             recent_room.appendChild(remove);
             recent_rooms.appendChild(recent_room);
         });
-        if (limit !== undefined) document.getElementById('recent-rooms-limit').value = limit;
     }
     let active_timer_end = null;
     let active_timer_type = null;
@@ -607,8 +602,6 @@
         const scroll = document.getElementById('scroll-btn')
         const savelog = document.getElementById('download-btn');
         const recent_rooms = document.getElementById('recent-rooms');
-        const recent_rooms_limit = document.getElementById('recent-rooms-limit');
-        const recent_rooms_limit_save = document.getElementById('recent-rooms-limit-save');
         const recent_rooms_clear = document.getElementById('recent-rooms-clear');
         const alias_dialog = document.getElementById('alias-dialog');
         const alias_input = document.getElementById('alias-input');
@@ -891,13 +884,10 @@
                 socket.emit('recent_room_remove', { channel: row.dataset.channel });
             }
         });
-        recent_rooms_limit_save.addEventListener('click', () => {
-            socket.emit('recent_rooms_limit', { limit: recent_rooms_limit.value });
-        });
         recent_rooms_clear.addEventListener('click', () => {
             socket.emit('recent_rooms_clear');
         });
-        setupChannelHotkeys(getTabs);
+        setupChannelHotkeys(getTabs, () => document.querySelector('input[name="tab"]:checked')?.dataset.channel || null);
         setInterval(updateMatchTimer, 250);
         // Button handling
         match_timer.addEventListener('click', (e) => {

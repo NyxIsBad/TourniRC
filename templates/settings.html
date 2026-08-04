@@ -1,9 +1,187 @@
 {% extends "layout.html" %}
 {% block title %}Settings{% endblock %}
 {% block content %}
-<div class="max-w-none w-full flex flex-col bg-base-100 p-4 mx-auto">
-    <h1 class="text-4xl font-bold">Welcome to TourniRC</h1>
-    <button class="btn btn-primary mt-4">T1</button>
-    <button class="btn btn-secondary mt-4">T2</button>
+<div class="w-full max-w-6xl mx-auto p-4 lg:p-8">
+    <!-- one settings page, four reasonably-sized problems -->
+    <div class="card border border-base-content bg-base-100 shadow-xl">
+        <div class="card-body">
+            <h1 class="card-title text-3xl">Settings</h1>
+            <p class="text-base-content/70">Configure TourniRC without changing how you control a match.</p>
+            <div role="tablist" class="tabs tabs-bordered mt-4">
+                <button role="tab" class="tab tab-active" data-section="general">General</button>
+                <button role="tab" class="tab" data-section="chat">Chat</button>
+                <button role="tab" class="tab" data-section="controls">Controls</button>
+                <button role="tab" class="tab" data-section="sounds">Sounds</button>
+            </div>
+
+            <section id="section-general" class="settings-section mt-4 space-y-4">
+                <!-- things that do not need their own category yet -->
+                <div class="card border border-base-content bg-base-200"><div class="card-body">
+                    <h2 class="card-title">Recent rooms</h2>
+                    <label class="form-control max-w-xs"><span class="label-text">Rooms to remember</span>
+                        <input id="room-history-limit" class="input input-bordered" type="number" min="1" max="50">
+                    </label>
+                    <div class="card-actions"><button id="save-general" class="btn btn-primary">Save</button><button data-reset="general" class="btn btn-outline">Restore defaults</button></div>
+                </div></div>
+            </section>
+
+            <section id="section-chat" class="settings-section hidden mt-4 space-y-4">
+                <!-- blocking happens locally; bancho still sends the traffic -->
+                <div class="card border border-base-content bg-base-200"><div class="card-body">
+                    <h2 class="card-title">Blocked private messages</h2>
+                    <p>Blocked PMs are hidden from chat, unread state, and sounds. Diagnostic IRC logs still contain received traffic.</p>
+                    <div class="join max-w-lg"><input id="blocked-user" class="input input-bordered join-item flex-1" placeholder="osu! username"><button id="add-blocked-user" class="btn btn-primary join-item">Block</button></div>
+                    <div id="blocked-users" class="flex flex-wrap gap-2"></div>
+                    <div class="card-actions"><button id="save-chat" class="btn btn-primary">Save</button><button data-reset="chat" data-confirm="Clear the entire PM block list?" class="btn btn-outline btn-error">Clear block list</button></div>
+                </div></div>
+            </section>
+
+            <section id="section-controls" class="settings-section hidden mt-4 space-y-4">
+                <!-- aliases rename local commands, macros actually send something -->
+                <div class="card border border-base-content bg-base-200"><div class="card-body">
+                    <h2 class="card-title">Command aliases</h2><div id="aliases" class="space-y-2"></div>
+                    <button id="add-alias" class="btn btn-sm btn-outline">Add alias</button>
+                </div></div>
+                <div class="card border border-base-content bg-base-200"><div class="card-body">
+                    <h2 class="card-title">Navigation hotkeys</h2><p>Use chords such as <kbd class="kbd">Alt+ArrowLeft</kbd>.</p><div id="hotkeys" class="space-y-2"></div>
+                </div></div>
+                <div class="card border border-base-content bg-base-200"><div class="card-body">
+                    <h2 class="card-title">Command macros</h2><div id="macros" class="space-y-3"></div>
+                    <button id="add-macro" class="btn btn-sm btn-outline">Add macro</button>
+                </div></div>
+                <div class="flex gap-2"><button id="save-controls" class="btn btn-primary">Save controls</button><button data-reset="controls" class="btn btn-outline">Restore aliases and hotkeys</button></div>
+            </section>
+
+            <section id="section-sounds" class="settings-section hidden mt-4 space-y-4">
+                <!-- client sounds stay separate from tournament sounds -->
+                <div class="card border border-base-content bg-base-200"><div class="card-body">
+                    <h2 class="card-title">Playback</h2>
+                    <label class="label cursor-pointer justify-start gap-3"><input id="audio-muted" type="checkbox" class="toggle"><span>Mute alerts</span></label>
+                    <label class="form-control max-w-md"><span class="label-text">Volume</span><input id="audio-volume" type="range" min="0" max="1" step="0.05" class="range range-primary"></label>
+                </div></div>
+                <div class="card border border-base-content bg-base-200"><div class="card-body">
+                    <h2 class="card-title">Sound library</h2><div id="sound-assets" class="space-y-2"></div>
+                    <form id="sound-upload" class="flex flex-wrap gap-2"><input id="sound-file" type="file" accept="audio/mpeg,audio/wav,audio/ogg,.mp3,.wav,.ogg" class="file-input file-input-bordered"><button class="btn btn-outline">Upload</button></form>
+                </div></div>
+                <div class="card border border-base-content bg-base-200"><div class="card-body">
+                    <h2 class="card-title">Message triggers</h2><p>No triggers are enabled by default.</p><div id="sound-triggers" class="space-y-3"></div>
+                    <button id="add-trigger" class="btn btn-sm btn-outline">Add trigger</button>
+                </div></div>
+                <div class="flex gap-2"><button id="save-audio" class="btn btn-primary">Save sounds</button><button data-reset="audio" data-confirm="Reset volume and remove every sound trigger? Uploaded files will remain." class="btn btn-outline btn-error">Restore audio defaults</button></div>
+            </section>
+        </div>
+    </div>
 </div>
+<script>
+    // this mirrors the last accepted backend state
+    let settingsState = null;
+    const resultError = result => makeNotification((result.errors || ['Unable to save settings.']).join('\n'), 6000, 'error');
+    function field(value, placeholder, classes = '') {
+        const input = document.createElement('input');
+        input.className = `input input-bordered input-sm ${classes}`;
+        input.value = value || '';
+        input.placeholder = placeholder;
+        return input;
+    }
+    function aliasField(value, className) {
+        // the slash is syntax, not a suggestion
+        const group = document.createElement('label');
+        group.className = 'input input-bordered input-sm flex items-center gap-1';
+        const prefix = document.createElement('span');
+        prefix.className = 'select-none opacity-70';
+        prefix.textContent = '/';
+        const input = document.createElement('input');
+        input.className = `grow min-w-0 ${className}`;
+        input.value = String(value || '').replace(/^\/+/, '');
+        input.placeholder = 'alias';
+        group.append(prefix, input);
+        return group;
+    }
+    function removeButton(row) {
+        const button = document.createElement('button');
+        button.className = 'btn btn-sm btn-square btn-outline btn-error';
+        button.textContent = '×';
+        button.addEventListener('click', () => row.remove());
+        return button;
+    }
+    function renderSettings(data) {
+        // redraw after saves so backend normalization is visible
+        settingsState = data;
+        document.getElementById('room-history-limit').value = data.chat.room_history_limit;
+        renderBlocked(data.chat.blocked_users);
+        renderAliases(data.controls.aliases);
+        renderHotkeys(data.controls.hotkeys);
+        renderMacros(data.controls.macros);
+        document.getElementById('audio-muted').checked = data.audio.muted;
+        document.getElementById('audio-volume').value = data.audio.volume;
+        renderAssets(data.audio.available_assets || []);
+        renderTriggers(data.audio.triggers);
+    }
+    function renderBlocked(users) {
+        const list = document.getElementById('blocked-users'); list.replaceChildren();
+        users.forEach(username => {
+            const badge = document.createElement('span'); badge.className = 'badge badge-lg gap-2';
+            const text = document.createElement('span'); text.textContent = username;
+            const remove = document.createElement('button'); remove.textContent = '×'; remove.setAttribute('aria-label', `Unblock ${username}`);
+            remove.addEventListener('click', () => badge.remove()); badge.dataset.username = username;
+            badge.append(text, remove); list.appendChild(badge);
+        });
+    }
+    function addAlias(alias = '', command = '') {
+        const row = document.createElement('div'); row.className = 'alias-row flex flex-wrap gap-2';
+        const aliasInput = aliasField(alias, 'alias-key'); const commandInput = field(command, '/query', 'alias-command');
+        row.append(aliasInput, commandInput, removeButton(row)); document.getElementById('aliases').appendChild(row);
+    }
+    function renderAliases(aliases) { const list = document.getElementById('aliases'); list.replaceChildren(); Object.entries(aliases).forEach(item => addAlias(...item)); }
+    function renderHotkeys(hotkeys) {
+        const list = document.getElementById('hotkeys'); list.replaceChildren();
+        Object.entries(hotkeys).forEach(([action, chord]) => {
+            const row = document.createElement('label'); row.className = 'hotkey-row flex items-center gap-3'; row.dataset.action = action;
+            const name = document.createElement('span'); name.className = 'w-40'; name.textContent = action.replaceAll('_', ' ');
+            const input = field(chord, 'Alt+Key', 'hotkey-value'); row.append(name, input); list.appendChild(row);
+        });
+    }
+    function addMacro(macro = {}) {
+        const row = document.createElement('div'); row.className = 'macro-row rounded border border-base-content p-3 grid gap-2 lg:grid-cols-3'; row.dataset.id = macro.id || '';
+        row.append(field(macro.name, 'Name', 'macro-name'), field(macro.command, 'Command', 'macro-command'), aliasField(macro.alias, 'macro-alias'), field(macro.hotkey, 'Alt+Key', 'macro-hotkey'));
+        [['button', 'Show button'], ['confirm', 'Confirm before sending']].forEach(([key, label]) => { const wrapper = document.createElement('label'); wrapper.className = 'label cursor-pointer justify-start gap-2'; const input = document.createElement('input'); input.type = 'checkbox'; input.className = `checkbox checkbox-sm macro-${key}`; input.checked = Boolean(macro[key]); wrapper.append(input, document.createTextNode(label)); row.appendChild(wrapper); });
+        row.appendChild(removeButton(row)); document.getElementById('macros').appendChild(row);
+    }
+    function renderMacros(macros) { const list = document.getElementById('macros'); list.replaceChildren(); macros.forEach(addMacro); }
+    function renderAssets(assets) {
+        const list = document.getElementById('sound-assets'); list.replaceChildren();
+        assets.forEach(asset => { const row = document.createElement('div'); row.className = 'flex items-center gap-2'; const name = document.createElement('span'); name.className = 'flex-1'; name.textContent = asset.name; const preview = document.createElement('button'); preview.className = 'btn btn-sm btn-outline'; preview.textContent = 'Preview'; preview.addEventListener('click', () => { const audio = new Audio(asset.url); audio.volume = Number(document.getElementById('audio-volume').value); audio.play(); }); row.append(name, preview); if (!asset.builtin) { const remove = document.createElement('button'); remove.className = 'btn btn-sm btn-outline btn-error'; remove.textContent = 'Delete'; remove.addEventListener('click', () => socket.emit('sound_delete', {id: asset.id}, result => result.ok ? renderSettings(result.data) : resultError(result))); row.appendChild(remove); } list.appendChild(row); });
+    }
+    function addTrigger(trigger = {}) {
+        const row = document.createElement('div'); row.className = 'trigger-row rounded border border-base-content p-3 grid gap-2 lg:grid-cols-4'; row.dataset.id = trigger.id || '';
+        const name = field(trigger.name, 'Name', 'trigger-name'), pattern = field(trigger.pattern, 'Text or regex', 'trigger-pattern'), sender = field(trigger.sender, 'Optional sender', 'trigger-sender');
+        const select = (className, values, selected) => { const element = document.createElement('select'); element.className = `select select-bordered select-sm ${className}`; values.forEach(([value, label]) => { const option = document.createElement('option'); option.value = value; option.textContent = label; option.selected = value === selected; element.appendChild(option); }); return element; };
+        const mode = select('trigger-mode', [['literal','Literal'],['regex','Regex']], trigger.mode || 'literal');
+        const scope = select('trigger-scope', [['all','All chat'],['pm','Private messages'],['match','MP rooms'],['channel','Public channels']], trigger.scope || 'all');
+        const asset = select('trigger-asset', (settingsState?.audio.available_assets || []).map(item => [item.id, item.name]), trigger.asset_id || '');
+        row.append(name, pattern, sender, mode, scope, asset);
+        [['enabled', 'Enabled', trigger.enabled !== false], ['case-sensitive', 'Case sensitive', trigger.case_sensitive]].forEach(([key, label, checked]) => { const wrapper = document.createElement('label'); wrapper.className = 'label cursor-pointer justify-start gap-2'; const input = document.createElement('input'); input.type = 'checkbox'; input.className = `checkbox checkbox-sm trigger-${key}`; input.checked = Boolean(checked); wrapper.append(input, document.createTextNode(label)); row.appendChild(wrapper); });
+        row.appendChild(removeButton(row)); document.getElementById('sound-triggers').appendChild(row);
+    }
+    function renderTriggers(triggers) { const list = document.getElementById('sound-triggers'); list.replaceChildren(); triggers.forEach(addTrigger); }
+    function collectControls() {
+        // put the fixed slash back before validation
+        const aliases = {}; document.querySelectorAll('.alias-row').forEach(row => { aliases[`/${row.querySelector('.alias-key').value.trim()}`] = row.querySelector('.alias-command').value.trim(); });
+        const hotkeys = {}; document.querySelectorAll('.hotkey-row').forEach(row => hotkeys[row.dataset.action] = row.querySelector('.hotkey-value').value.trim());
+        const macros = Array.from(document.querySelectorAll('.macro-row')).map(row => { const alias = row.querySelector('.macro-alias').value.trim(); return {id: row.dataset.id, name: row.querySelector('.macro-name').value.trim(), command: row.querySelector('.macro-command').value.trim(), alias: alias ? `/${alias}` : '', hotkey: row.querySelector('.macro-hotkey').value.trim(), button: row.querySelector('.macro-button').checked, confirm: row.querySelector('.macro-confirm').checked}; });
+        return {aliases, hotkeys, macros};
+    }
+    function collectAudio() { return {volume: Number(document.getElementById('audio-volume').value), muted: document.getElementById('audio-muted').checked, assets: settingsState.audio.assets, triggers: Array.from(document.querySelectorAll('.trigger-row')).map(row => ({id: row.dataset.id, name: row.querySelector('.trigger-name').value.trim(), pattern: row.querySelector('.trigger-pattern').value, sender: row.querySelector('.trigger-sender').value.trim(), mode: row.querySelector('.trigger-mode').value, scope: row.querySelector('.trigger-scope').value, asset_id: row.querySelector('.trigger-asset').value, enabled: row.querySelector('.trigger-enabled').checked, case_sensitive: row.querySelector('.trigger-case-sensitive').checked}))}; }
+    function saveSection(section, value) { socket.emit('settings_update', {section, value}, result => { if (!result.ok) return resultError(result); renderSettings(result.data); makeNotification('Settings saved.', 3000, 'success'); }); }
+    document.querySelectorAll('[data-section]').forEach(tab => tab.addEventListener('click', () => { document.querySelectorAll('[data-section]').forEach(item => item.classList.toggle('tab-active', item === tab)); document.querySelectorAll('.settings-section').forEach(section => section.classList.toggle('hidden', section.id !== `section-${tab.dataset.section}`)); }));
+    document.getElementById('save-general').addEventListener('click', () => saveSection('chat', {...settingsState.chat, room_history_limit: document.getElementById('room-history-limit').value}));
+    document.getElementById('add-blocked-user').addEventListener('click', () => { const input = document.getElementById('blocked-user'); if (input.value.trim()) { renderBlocked([...Array.from(document.querySelectorAll('#blocked-users [data-username]')).map(item => item.dataset.username), input.value.trim()]); input.value = ''; } });
+    document.getElementById('save-chat').addEventListener('click', () => saveSection('chat', {...settingsState.chat, blocked_users: Array.from(document.querySelectorAll('#blocked-users [data-username]')).map(item => item.dataset.username)}));
+    document.getElementById('add-alias').addEventListener('click', () => addAlias()); document.getElementById('add-macro').addEventListener('click', () => addMacro()); document.getElementById('save-controls').addEventListener('click', () => saveSection('controls', collectControls()));
+    document.getElementById('add-trigger').addEventListener('click', () => addTrigger()); document.getElementById('save-audio').addEventListener('click', () => saveSection('audio', collectAudio()));
+    document.querySelectorAll('[data-reset]').forEach(button => button.addEventListener('click', () => { if (button.dataset.confirm && !confirm(button.dataset.confirm)) return; socket.emit('settings_reset', {section: button.dataset.reset}, result => result.ok ? renderSettings(result.data) : resultError(result)); }));
+    document.getElementById('sound-upload').addEventListener('submit', async event => { event.preventDefault(); const file = document.getElementById('sound-file').files[0]; if (!file) return; const body = new FormData(); body.append('sound', file); const response = await fetch('/api/sounds', {method: 'POST', body}); const result = await response.json(); if (!result.ok) return resultError(result); socket.emit('settings_get', result => renderSettings(result.data)); });
+    socket.on('settings_changed', renderSettings);
+    socket.emit('settings_get', result => result.ok ? renderSettings(result.data) : resultError(result));
+</script>
 {% endblock %}

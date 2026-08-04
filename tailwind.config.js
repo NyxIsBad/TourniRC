@@ -1,5 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  // only scan files that can actually contain classes
   content: [
     "./templates/**/*.html",
     "./static/js/**/*.js",
@@ -9,6 +10,7 @@ module.exports = {
   },
   plugins: [require("@tailwindcss/typography"), require("daisyui")],
   daisyui: {
+    // the theme menu exposes this exact list
     themes: [
       "light",
       "dark",
