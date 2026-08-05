@@ -1,10 +1,19 @@
+"""
+I know this is called ui.py, but it's really kind of like, the entire client.
+
+It just kind of ballooned and now I don't want to refactor it. Hit me up with a PR if you do this
+"""
 from flask import Flask, render_template, redirect, url_for, request, send_file, jsonify
 from flask_socketio import SocketIO, emit
-from cfg import THEMES, roomsConfig, uiConfig, userConfig
+from cfg import THEMES, roomsConfig, userConfig
 from settings import SettingsRepository, SettingsError, normalize_username
 from sounds import SoundStore, available_assets, matching_sounds
+from tournaments import MODS, TournamentAssignments, TournamentError, TournamentRepository, fetch_beatmap_metadata, parse_mappool_text, validate_tournament
 
 import json
+import os
+import re
+from pathlib import Path
 from typing import *
 import time
 import uuid
@@ -14,15 +23,19 @@ from utils import *
 from eventlog import EventLog
 from match_parser import parse_match_message
 
+# globals
 app = Flask(__name__)
 socketio = SocketIO(app)
-settings_cfg = SettingsRepository()
-ui_cfg = uiConfig()
-rms_cfg = roomsConfig(max_rooms=settings_cfg.data['chat']['room_history_limit'])
+DATA_DIR = Path(os.environ.get('TOURNIRC_CONFIG_DIR', 'cfg'))
+settings_cfg = SettingsRepository(DATA_DIR / 'settings.json')
+rms_cfg = roomsConfig(str(DATA_DIR / 'recentrooms.ini'), max_rooms=settings_cfg.data['chat']['room_history_limit'])
 rms_cfg.set_max_rooms(settings_cfg.data['chat']['room_history_limit'])
-user_cfg = userConfig()
-sound_store = SoundStore()
+user_cfg = userConfig(str(DATA_DIR / 'login.ini'))
+sound_store = SoundStore(DATA_DIR / 'sounds')
+tournament_cfg = TournamentRepository(DATA_DIR / 'tournaments')
+tournament_assignments = TournamentAssignments()
 
+# lots of states
 IRC_STATE_CONNECTING = 'connecting'
 IRC_STATE_AUTHENTICATED = 'authenticated'
 IRC_STATE_RECONNECTING = 'reconnecting'
@@ -60,12 +73,15 @@ def emit_recent_rooms() -> None:
     }, broadcast=True)
 
 def emit_match_state(chat) -> None:
-    emit('match_state', {
+    payload = {
         'channel': chat.channel_name,
         'info': chat.channel_info(),
         'teams': chat.teams,
         'players': chat.players
-    }, broadcast=True)
+    }
+    if 'tournament_cfg' in globals():
+        payload['tournament'] = tournament_overlay(chat.channel_name)
+    emit('match_state', payload, broadcast=True)
 
 def settings_payload() -> Dict[str, Any]:
     payload = settings_cfg.snapshot()
@@ -75,6 +91,63 @@ def settings_payload() -> Dict[str, Any]:
 def settings_result(ok=True, data=None, errors=None) -> Dict[str, Any]:
     return {'ok': ok, 'data': data, 'errors': errors or []}
 
+def tournament_result(ok=True, data=None, errors=None) -> Dict[str, Any]:
+    return {'ok': ok, 'data': data, 'errors': errors or []}
+
+def tournament_state() -> Dict[str, Any]:
+    in_use = {item['id']: tournament_assignments.channels_for(item['id']) for item in tournament_cfg.items.values()}
+    return {
+        'enabled': tournament_cfg.enabled, 'tournaments': tournament_cfg.list(),
+        'in_use': in_use, 'mods': MODS,
+        'sound_assets': available_assets(settings_cfg.snapshot())
+    }
+
+def score_mods(value):
+    # this might become obsolete later. we'll see
+    if isinstance(value, list):
+        selected = [str(mod).upper() for mod in value if str(mod).upper() in MODS]
+        return ['NM'] if 'NM' in selected or not selected else selected
+    compact = re.sub(r'[^A-Za-z0-9]', '', str(value or '')).upper()
+    if compact in {'', 'NM', 'NOMOD', 'FREEMOD', 'NONE'}:
+        return ['NM']
+    result = []
+    while compact:
+        mod = next((code for code in sorted(MODS, key=len, reverse=True) if compact.startswith(code)), None)
+        if not mod:
+            break
+        result.append(mod)
+        compact = compact[len(mod):]
+    return result
+
+def tournament_overlay(channel: str) -> Dict[str, Any]:
+    assignment = tournament_assignments.get(channel)
+    tournament = tournament_cfg.get(assignment['tournament_id']) if assignment['tournament_id'] else None
+    score = None
+    chat = chats.get_chat(channel) if 'chats' in globals() else None
+    config = tournament.get('score_calculation', {}) if tournament else {}
+    if chat and config.get('enabled'):
+        totals = {'red': 0.0, 'blue': 0.0}
+        rows = []
+        multipliers = {str(key).upper(): float(value) for key, value in config.get('mod_multipliers', {}).items()}
+        for username, player in chat.players.items():
+            if player.get('score') is None or player.get('team') not in {TEAM_RED, TEAM_BLUE}:
+                continue
+            mods = str(player.get('mods') or 'NoMod')
+            applied_mods = score_mods(chat.score_mod_overrides.get(username, player.get('score_mods', mods)))
+            multiplier = 1.0
+            for mod in applied_mods:
+                multiplier *= multipliers.get(mod, 1.0)
+            adjusted = player['score'] * multiplier
+            team = 'red' if player['team'] == TEAM_RED else 'blue'
+            totals[team] += adjusted
+            rows.append({'username': username, 'team': team, 'score': player['score'], 'mods': mods, 'applied_mods': applied_mods, 'multiplier': multiplier, 'adjusted': adjusted})
+        score = {'totals': totals, 'players': rows}
+    return {
+        'enabled': tournament_cfg.enabled, 'assignment': assignment,
+        'tournament': tournament if tournament_cfg.enabled else None, 'score': score
+    }
+
+# more globals wrt. actual ui
 TEAM_RED = 1
 TEAM_BLUE = 2
 TEAM_NONE = 0
@@ -92,6 +165,7 @@ team_map = {
 }
 
 blocked_pm_notices = {}
+map_pick_locks = {}
 
 debug_flag = False
 
@@ -180,11 +254,11 @@ def command_parse(command: str) -> None:
     elif command == "/matchtimer":
         if len(args) == 0:
             handle_send_msg({
-                "content": f"!mp start {chats.get_current_chat.match_timer}"
+                "content": f"!mp start {chats.get_current_chat.start_timer}"
             })
         else:
-            chats.get_current_chat.set_match_timer(args[0])
-            emit('set_match_timer_input', {
+            chats.get_current_chat.set_start_timer(args[0])
+            emit('set_start_timer_input', {
                 'timer': args[0]
             })
             handle_send_msg({
@@ -227,8 +301,9 @@ class Chat():
         # 1 = red, 2 = blue, 0 = none
         self.teams: Dict[str, int] = {}
         self.players: Dict[str, Dict[str, Any]] = {}
+        self.score_mod_overrides: Dict[str, List[str]] = {}
         self.timer = kwargs['timer'] if 'timer' in kwargs else 120
-        self.match_timer = kwargs['match_timer'] if 'match_timer' in kwargs else 5
+        self.start_timer = kwargs.get('start_timer', 5)
         self.match_name = None
         self.match_id = channel_name[4:] if channel_name.casefold().startswith('#mp_') else None
         self.team_mode = None
@@ -365,11 +440,11 @@ class Chat():
         """
         self.timer = timer
 
-    def set_match_timer(self, match_timer: int) -> None:
+    def set_start_timer(self, start_timer: int) -> None:
         """
         Set the start timer for the chat channel.
         """
-        self.match_timer = match_timer
+        self.start_timer = start_timer
 
     def set_alias(self, alias: str) -> None:
         """
@@ -563,25 +638,30 @@ chats = Chats()
 # ---------------------
 @app.route('/')
 def chat():
-    cur_theme = ui_cfg.get_theme()
+    cur_theme = settings_cfg.data['appearance']['theme']
     if not user_cfg.has_credentials() and pending_credentials is None:
         return redirect(url_for('login'))
     return render_template('chat.html', cur_theme=cur_theme, themes=THEMES)
 
 @app.route('/login')
 def login():
-    cur_theme = ui_cfg.get_theme()
+    cur_theme = settings_cfg.data['appearance']['theme']
     return render_template('login.html', cur_theme=cur_theme, themes=THEMES)
 
 @app.route('/settings')
 def settings():
-    cur_theme = ui_cfg.get_theme()
+    cur_theme = settings_cfg.data['appearance']['theme']
     return render_template('settings.html', cur_theme=cur_theme, themes=THEMES)
 
 @app.route('/help')
 def help_page():
-    cur_theme = ui_cfg.get_theme()
+    cur_theme = settings_cfg.data['appearance']['theme']
     return render_template('help.html', cur_theme=cur_theme, themes=THEMES)
+
+@app.route('/tournaments')
+def tournaments_page():
+    cur_theme = settings_cfg.data['appearance']['theme']
+    return render_template('tournaments.html', cur_theme=cur_theme, themes=THEMES)
 
 @app.route('/sounds/<asset_id>')
 def custom_sound(asset_id):
@@ -617,7 +697,6 @@ def set_theme(data: Dict[str, Any]):
     # default to dark theme
     theme: str = data.get('theme', 'dark')
     if theme in THEMES:
-        ui_cfg.set_theme(theme)
         appearance = settings_cfg.snapshot()['appearance']
         appearance['theme'] = theme
         settings_cfg.update_section('appearance', appearance)
@@ -679,11 +758,18 @@ def handle_sound_delete(data: Dict[str, Any]):
         return settings_result(False, errors=['Sound not found.'])
     if any(trigger['asset_id'] == asset['id'] for trigger in audio['triggers']):
         return settings_result(False, errors=['This sound is used by a trigger.'])
+    if any(
+        trigger.get('asset_id') == asset['id']
+        for tournament in tournament_cfg.items.values()
+        for trigger in tournament.get('sound_triggers', [])
+    ):
+        return settings_result(False, errors=['This sound is used by a tournament trigger.'])
     sound_store.delete(asset)
     audio['assets'].remove(asset)
     settings_cfg.update_section('audio', audio)
     payload = settings_payload()
     emit('settings_changed', payload, broadcast=True)
+    emit('tournament_state', tournament_state(), broadcast=True)
     return settings_result(data=payload)
 
 @socketio.on('run_macro')
@@ -732,6 +818,7 @@ def handle_browser_ready():
         'max_rooms': rms_cfg.max_rooms
     })
     emit('connection_state', connection_state)
+    emit('tournament_state', tournament_state())
     if chats.current_chat:
         emit('restore_tab', {'channel': chats.current_chat})
 
@@ -839,6 +926,25 @@ def handle_recv_msg(data: Dict[str, Any]):
     )
     if sounds:
         emit('play_sounds', {'sounds': sounds}, broadcast=True)
+    assignment = tournament_assignments.get(data['room_name'])
+    tournament = tournament_cfg.items.get(assignment['tournament_id'])
+    if tournament_cfg.enabled and tournament:
+        triggers = [{
+            'id': trigger.get('id', ''), 'name': trigger.get('name', ''),
+            'enabled': trigger.get('enabled', True), 'mode': trigger.get('mode', 'literal'),
+            'pattern': trigger.get('pattern', ''), 'case_sensitive': trigger.get('case_sensitive', False),
+            'sender': trigger.get('sender', ''), 'scope': trigger.get('scope', 'all'),
+            'asset_id': trigger.get('asset_id', '')
+        } for trigger in tournament.get('sound_triggers', [])]
+        tournament_sound_settings = {'audio': {
+            'volume': settings_cfg.data['audio']['volume'], 'muted': settings_cfg.data['audio']['muted'],
+            'assets': settings_cfg.data['audio']['assets'], 'triggers': triggers
+        }}
+        tournament_sounds = matching_sounds(
+            tournament_sound_settings, data['user_name'], data['content'], data['room_name'], data['channel_type']
+        )
+        if tournament_sounds:
+            emit('play_sounds', {'sounds': tournament_sounds}, broadcast=True)
     if event:
         if event.kind == 'create_match':
             start_chat(f"#mp_{event.match_id}", osu_irc.CHANNEL_TYPE_ROOM)
@@ -868,9 +974,20 @@ def handle_recv_msg(data: Dict[str, Any]):
             chat.teams.clear()
             chat.players.clear()
             chat.player_count = int(event.value)
+        elif event.kind == 'player_score':
+            username = case_insensitive_get(chat.players, event.username) or event.username
+            player = chat.players.setdefault(username, {'team': TEAM_NONE, 'ready': None, 'status': None, 'host': False, 'mods': None, 'slot': None})
+            player['score'] = event.score
+            player['passed'] = event.passed
+            player['score_mods'] = score_mods(chat.score_mod_overrides.get(username, player.get('mods')))
         elif event.kind == 'beatmap':
             chat.beatmap = event.value
             chat.map_id = event.map_id
+            chat.score_mod_overrides.clear()
+            for player in chat.players.values():
+                player.pop('score', None)
+                player.pop('passed', None)
+                player.pop('score_mods', None)
         elif event.kind == 'mods':
             chat.mods = event.value
             chat.mods_host_unknown = bool(chat.host)
@@ -907,7 +1024,7 @@ def handle_recv_msg(data: Dict[str, Any]):
         elif event.kind == 'host_map':
             chat.mods = None
             chat.mods_host_unknown = True
-        elif event.kind in {'match_timer', 'start_timer'}:
+        elif event.kind in {'timer', 'start_timer'}:
             chat.set_active_timer(event.kind, event.seconds, data['time_recv'])
         elif event.kind == 'countdown_abort':
             chat.stop_active_timer()
@@ -931,12 +1048,13 @@ def handle_tab_swap(data: Dict[str, Any]):
         'channel': channel,
         'messages': messages,
         'timer': chats.get_chat(channel).timer,
-        'match_timer': chats.get_chat(channel).match_timer,
+        'start_timer': chats.get_chat(channel).start_timer,
         'teams': json.dumps(chats.get_chat(channel).teams),
         'players': chats.get_chat(channel).players,
         'channel_info': chats.get_chat(channel).channel_info(),
         'recent_rooms': rms_cfg.rooms,
-        'recent_rooms_limit': rms_cfg.max_rooms
+        'recent_rooms_limit': rms_cfg.max_rooms,
+        'tournament': tournament_overlay(channel)
     }
 
 @socketio.on('tab_close')
@@ -944,6 +1062,7 @@ def handle_tab_close(data: Dict[str, Any]):
     log_socket_event('tab_close', data)
     if not valid_payload('tab_close', data, {'channel': str}) or not chats.get_chat(data['channel']):
         return
+    tournament_assignments.remove(data['channel'])
     chats.remove_chat(data['channel'])
 
 @socketio.on('tab_reorder')
@@ -1064,12 +1183,12 @@ def handle_set_timer(data: Dict[str, Any]):
         return
     chats.get_current_chat.set_timer(data['timer'])
 
-@socketio.on('set_match_timer')
-def handle_set_match_timer(data: Dict[str, Any]):
-    log_socket_event('set_match_timer', data)
-    if not valid_payload('set_match_timer', data, {'timer': (int, str)}) or not chats.get_current_chat:
+@socketio.on('set_start_timer')
+def handle_set_start_timer(data: Dict[str, Any]):
+    log_socket_event('set_start_timer', data)
+    if not valid_payload('set_start_timer', data, {'timer': (int, str)}) or not chats.get_current_chat:
         return
-    chats.get_current_chat.set_match_timer(data['timer'])
+    chats.get_current_chat.set_start_timer(data['timer'])
 
 @socketio.on('change_alias')
 def change_alias(data: Dict[str, Any]):
@@ -1087,6 +1206,191 @@ def change_alias(data: Dict[str, Any]):
         'teams': chat.teams,
         'players': chat.players
     }, broadcast=True)
+
+# ---------------------
+# Tournament Routes
+# ---------------------
+@socketio.on('tournament_list')
+def handle_tournament_list():
+    log_socket_event('tournament_list')
+    return tournament_result(data=tournament_state())
+
+@socketio.on('tournament_create')
+def handle_tournament_create(data=None):
+    item = tournament_cfg.create()
+    payload = tournament_state()
+    emit('tournament_state', payload, broadcast=True)
+    return tournament_result(data={'tournament': item, 'state': payload})
+
+@socketio.on('tournament_validate')
+def handle_tournament_validate(data: Dict[str, Any]):
+    if not valid_payload('tournament_validate', data, {'tournament': dict}):
+        return tournament_result(False, errors=['invalid tournament request.'])
+    errors = validate_tournament(data['tournament'])
+    return tournament_result(not errors, data={'valid': not errors}, errors=errors)
+
+@socketio.on('tournament_import_mappool')
+def handle_tournament_import_mappool(data: Dict[str, Any]):
+    if not valid_payload('tournament_import_mappool', data, {'text': str}):
+        return tournament_result(False, errors=['invalid mappool import request.'])
+    try:
+        return tournament_result(data={'maps': parse_mappool_text(data['text'])})
+    except ValueError as error:
+        return tournament_result(False, errors=[str(error)])
+
+@socketio.on('tournament_fetch_map_metadata')
+def handle_tournament_fetch_map_metadata(data: Dict[str, Any]):
+    if not valid_payload('tournament_fetch_map_metadata', data, {'map_id': (int, str)}):
+        return tournament_result(False, errors=['invalid metadata request.'])
+    try:
+        return tournament_result(data=fetch_beatmap_metadata(data['map_id']))
+    except ValueError as error:
+        return tournament_result(False, errors=[str(error)])
+
+@socketio.on('tournament_save')
+def handle_tournament_save(data: Dict[str, Any]):
+    if not valid_payload('tournament_save', data, {'tournament': dict}):
+        return tournament_result(False, errors=['invalid tournament request.'])
+    try:
+        item = data['tournament']
+        tournament_id = str(item.get('id', ''))
+        assigned = tournament_assignments.channels_for(tournament_id)
+        if assigned and validate_tournament(item):
+            raise TournamentError('an in-use tournament cannot be saved as an invalid draft.')
+        old = tournament_cfg.items.get(tournament_id)
+        if assigned and old:
+            removed = set(old.get('mappools', {})) - set(item.get('mappools', {}))
+            if any(tournament_assignments.get(channel)['pool_id'] in removed for channel in assigned):
+                raise TournamentError('an assigned mappool cannot be removed.')
+        saved = tournament_cfg.save(item)
+        payload = tournament_state()
+        emit('tournament_state', payload, broadcast=True)
+        return tournament_result(data={'tournament': saved, 'state': payload})
+    except TournamentError as error:
+        return tournament_result(False, errors=[str(error)])
+
+@socketio.on('tournament_duplicate')
+def handle_tournament_duplicate(data: Dict[str, Any]):
+    if not valid_payload('tournament_duplicate', data, {'id': str}):
+        return tournament_result(False, errors=['invalid tournament request.'])
+    try:
+        item = tournament_cfg.duplicate(data['id'])
+        payload = tournament_state()
+        emit('tournament_state', payload, broadcast=True)
+        return tournament_result(data={'tournament': item, 'state': payload})
+    except TournamentError as error:
+        return tournament_result(False, errors=[str(error)])
+
+@socketio.on('tournament_delete')
+def handle_tournament_delete(data: Dict[str, Any]):
+    if not valid_payload('tournament_delete', data, {'id': str}):
+        return tournament_result(False, errors=['invalid tournament request.'])
+    if tournament_assignments.channels_for(data['id']):
+        return tournament_result(False, errors=['clear this tournament\'s assignments before deleting it.'])
+    try:
+        tournament_cfg.delete(data['id'])
+        payload = tournament_state()
+        emit('tournament_state', payload, broadcast=True)
+        return tournament_result(data=payload)
+    except TournamentError as error:
+        return tournament_result(False, errors=[str(error)])
+
+@socketio.on('tournament_toggle')
+def handle_tournament_toggle(data: Dict[str, Any]):
+    if not valid_payload('tournament_toggle', data, {'enabled': bool}):
+        return tournament_result(False, errors=['invalid tournament request.'])
+    try:
+        tournament_cfg.set_enabled(data['enabled'])
+        payload = tournament_state()
+        emit('tournament_state', payload, broadcast=True)
+        return tournament_result(data=payload)
+    except TournamentError as error:
+        return tournament_result(False, errors=[str(error)])
+
+@socketio.on('tournament_clear_assignments')
+def handle_tournament_clear_assignments(data: Dict[str, Any]):
+    if not valid_payload('tournament_clear_assignments', data, {'id': str}):
+        return tournament_result(False, errors=['invalid tournament request.'])
+    affected = tournament_assignments.clear_tournament(data['id'])
+    for channel in affected:
+        emit('tournament_overlay', {'channel': channel, **tournament_overlay(channel)}, broadcast=True)
+    emit('tournament_state', tournament_state(), broadcast=True)
+    return tournament_result(data={'channels': affected})
+
+@socketio.on('tournament_assign')
+def handle_tournament_assign(data: Dict[str, Any]):
+    if not valid_payload('tournament_assign', data, {'channel': str, 'tournament_id': str}):
+        return tournament_result(False, errors=['invalid assignment request.'])
+    chat = chats.get_chat(data['channel'])
+    tournament = tournament_cfg.get(data['tournament_id']) if data['tournament_id'] else None
+    if not chat or not data['channel'].casefold().startswith('#mp_'):
+        return tournament_result(False, errors=['tournaments can only be assigned to open match rooms.'])
+    if data['tournament_id'] and (not tournament_cfg.enabled or not tournament or not tournament['valid']):
+        return tournament_result(False, errors=['select a valid tournament while tournaments are enabled.'])
+    try:
+        tournament_assignments.assign(data['channel'], data['tournament_id'])
+        if tournament:
+            chat.set_timer(tournament['timer'])
+            chat.set_start_timer(tournament['start_timer'])
+            emit('set_timer_input', {'timer': tournament['timer']})
+            emit('set_start_timer_input', {'timer': tournament['start_timer']})
+        payload = tournament_overlay(data['channel'])
+        emit('tournament_overlay', {'channel': chat.channel_name, **payload}, broadcast=True)
+        emit('tournament_state', tournament_state(), broadcast=True)
+        return tournament_result(data=payload)
+    except ValueError as error:
+        return tournament_result(False, errors=[str(error)])
+
+@socketio.on('tournament_select_pool')
+def handle_tournament_select_pool(data: Dict[str, Any]):
+    if not valid_payload('tournament_select_pool', data, {'channel': str, 'pool_id': str}):
+        return tournament_result(False, errors=['invalid mappool request.'])
+    assignment = tournament_assignments.get(data['channel'])
+    tournament = tournament_cfg.items.get(assignment['tournament_id'])
+    if not tournament or (data['pool_id'] and data['pool_id'] not in tournament['mappools']):
+        return tournament_result(False, errors=['mappool not found.'])
+    try:
+        tournament_assignments.select_pool(data['channel'], data['pool_id'])
+        payload = tournament_overlay(data['channel'])
+        emit('tournament_overlay', {'channel': data['channel'], **payload}, broadcast=True)
+        return tournament_result(data=payload)
+    except ValueError as error:
+        return tournament_result(False, errors=[str(error)])
+
+@socketio.on('tournament_pick_map')
+def handle_tournament_pick_map(data: Dict[str, Any]):
+    if not valid_payload('tournament_pick_map', data, {'channel': str, 'map_id': str}):
+        return tournament_result(False, errors=['invalid map request.'])
+    assignment = tournament_assignments.get(data['channel'])
+    tournament = tournament_cfg.items.get(assignment['tournament_id'])
+    pool = tournament.get('mappools', {}).get(assignment['pool_id']) if tournament else None
+    beatmap = pool.get('maps', {}).get(data['map_id']) if pool else None
+    if not tournament_cfg.enabled or not beatmap:
+        return tournament_result(False, errors=['map is not available for this tab.'])
+    if connection_state['state'] != IRC_STATE_AUTHENTICATED:
+        return tournament_result(False, errors=['messages cannot be sent while disconnected.'])
+    lock_key = data['channel'].casefold()
+    now = time.monotonic()
+    if now - map_pick_locks.get(lock_key, 0) < 1:
+        return tournament_result(False, errors=['wait a moment before selecting another map.'])
+    map_pick_locks[lock_key] = now
+    handle_send_msg({'channel': data['channel'], 'content': beatmap.get('map_command')})
+    handle_send_msg({'channel': data['channel'], 'content': beatmap.get('mods_command')})
+    return tournament_result(data={'map_id': data['map_id']})
+
+@socketio.on('tournament_score_mods')
+def handle_tournament_score_mods(data: Dict[str, Any]):
+    if not valid_payload('tournament_score_mods', data, {'channel': str, 'username': str, 'mods': list}):
+        return tournament_result(False, errors=['invalid score mod request.'])
+    chat = chats.get_chat(data['channel'])
+    username = case_insensitive_get(chat.players, data['username']) if chat else None
+    if not chat or not username or not all(isinstance(mod, str) and mod in MODS for mod in data['mods']):
+        return tournament_result(False, errors=['player or mod not found.'])
+    mods = list(dict.fromkeys(data['mods']))
+    chat.score_mod_overrides[username] = ['NM'] if 'NM' in mods or not mods else mods
+    payload = tournament_overlay(data['channel'])
+    emit('tournament_overlay', {'channel': chat.channel_name, **payload}, broadcast=True)
+    return tournament_result(data=payload)
 
 @socketio.on('debug')
 def debug(data: Dict[str, Any]):
@@ -1111,9 +1415,9 @@ def debug_connect():
     # Careful to only run this once
     debug_flag = False
     chats.username = "HijiriS"
-    chats.add_chat("#testchat1", osu_irc.CHANNEL_TYPE_ROOM, timer=120, match_timer=5)
+    chats.add_chat("#testchat1", osu_irc.CHANNEL_TYPE_ROOM, timer=120, start_timer=5)
     chats.add_chat("testpm1", osu_irc.CHANNEL_TYPE_PM)
-    chats.add_chat("#mp_12345678", osu_irc.CHANNEL_TYPE_ROOM, timer=90, match_timer=10)
+    chats.add_chat("#mp_12345678", osu_irc.CHANNEL_TYPE_ROOM, timer=90, start_timer=10)
     chats.add_message({
         'room_name': "#testchat1",
         'time_recv': htime("12:00:01 PM"),
