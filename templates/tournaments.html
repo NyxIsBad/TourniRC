@@ -1,0 +1,578 @@
+{% extends "layout.html" %}
+{% block title %}Tournaments{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto p-4 lg:p-8">
+    <div class="card border border-base-content bg-base-100 shadow-xl"><div class="card-body">
+        <div class="flex flex-wrap items-center gap-3">
+            <h1 class="card-title text-3xl flex-1">Tournaments</h1>
+            <label class="label cursor-pointer gap-3"><span>Enable tournament features</span><input id="tournament-enabled" type="checkbox" class="toggle toggle-primary"></label>
+        </div>
+        <p>Presets are optional; the tournaments icon will glow if tournaments are on</p>
+        <div class="grid gap-4 lg:grid-cols-[18rem_1fr] mt-4">
+            <aside class="space-y-2"><button id="new-tournament" class="btn btn-primary w-full">New tournament</button><div id="tournament-list" class="menu rounded-box bg-base-200"></div></aside>
+            <section id="editor" class="hidden space-y-4">
+                <div class="flex flex-wrap gap-2 items-center"><h2 id="editor-title" class="text-2xl font-semibold flex-1"></h2><span id="dirty" class="badge badge-warning hidden">Unsaved</span><span id="validity" class="badge"></span></div>
+                <div role="tablist" class="tabs tabs-bordered"><button class="tab tab-active" data-editor-tab="general">General</button><button class="tab" data-editor-tab="mappools">Mappools</button><button class="tab" data-editor-tab="sounds">Sounds</button></div>
+                <div id="editor-general" class="editor-panel space-y-4">
+                    <div class="grid gap-3 md:grid-cols-2">
+                        <label class="form-control"><span class="label-text">Name</span><input id="t-name" class="input input-bordered"></label>
+                        <label class="form-control"><span class="label-text">Color</span><input id="t-color" type="color" class="input input-bordered w-full"></label>
+                        <label class="form-control"><span class="label-text">Match timer</span><input id="t-timer" type="number" min="1" class="input input-bordered"></label>
+                        <label class="form-control"><span class="label-text">Start timer</span><input id="t-start-timer" type="number" min="1" class="input input-bordered"></label>
+                    </div>
+                    <div class="card border border-base-content bg-base-200"><div class="card-body">
+                        <label class="label cursor-pointer justify-start gap-3"><input id="score-enabled" type="checkbox" class="toggle"><span class="card-title">Calculate team scores</span></label>
+                        <p>Each mod multiplier is applied separately to a player's completed score.</p>
+                        <div id="score-multipliers" class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3"></div>
+                    </div></div>
+                </div>
+                <div id="editor-mappools" class="editor-panel hidden space-y-3"><div id="mappools" class="space-y-4"></div><button id="add-mappool" class="btn btn-sm btn-outline">Add mappool</button></div>
+                <div id="editor-sounds" class="editor-panel hidden space-y-4">
+                    <div class="card border border-base-content bg-base-200"><div class="card-body"><h3 class="card-title">Sound library</h3><div id="sound-assets" class="space-y-2"></div><form id="sound-upload" class="flex flex-wrap gap-2"><input id="sound-file" type="file" accept="audio/mpeg,audio/wav,audio/ogg,.mp3,.wav,.ogg" class="file-input file-input-bordered"><button class="btn btn-outline">Upload</button></form></div></div>
+                    <div class="card border border-base-content bg-base-200"><div class="card-body"><h3 class="card-title">Message triggers</h3><div id="sound-triggers" class="space-y-3"></div><button id="add-trigger" class="btn btn-sm btn-outline">Add trigger</button></div></div>
+                </div>
+                <div id="validation-errors" class="alert alert-error hidden"><ul class="list-disc pl-5"></ul></div>
+                <div class="flex flex-wrap gap-2"><button id="save-tournament" class="btn btn-primary">Save</button><button id="validate-tournament" class="btn btn-outline">Validate</button><button id="duplicate-tournament" class="btn btn-outline">Duplicate</button><button id="clear-assignments" class="btn btn-outline btn-warning">Clear assignments</button><button id="delete-tournament" class="btn btn-outline btn-error">Delete</button></div>
+            </section>
+        </div>
+    </div></div>
+</div>
+<dialog id="mappool-import" class="modal"><div class="modal-box">
+    <h3 class="font-bold text-lg">Import maps</h3>
+    <div class="flex items-center gap-2 py-2"><p>Paste three lines per map: map name, full mods command, then full map command.</p><span class="tooltip tooltip-left" data-tip="name&#10;!mp mods [anything]&#10;!mp map [anything]"><span class="badge badge-outline cursor-help" tabindex="0">?</span></span></div>
+    <textarea id="mappool-import-text" class="textarea textarea-bordered font-mono w-full h-80" placeholder="NM1&#10;!mp mods 1&#10;!mp map 4612267 0&#10;&#10;OR&#10;&#10;NM1 !mp mods 1 !mp map 4612267"></textarea>
+    <div class="modal-action"><button id="mappool-import-confirm" class="btn btn-primary">Import</button><button id="mappool-import-cancel" class="btn">Cancel</button></div>
+</div></dialog>
+<script>
+    // tournament editor state
+    let state = {
+        enabled: false,
+        tournaments: [],
+        in_use: {},
+        mods: {},
+        sound_assets: []
+    };
+    let selected = null,
+        dirty = false,
+        validationTimer = null,
+        importTarget = null;
+    const fail = result => makeNotification((result.errors || ['Tournament request failed.']).join('\n'), 6000, 'error');
+    const input = (value, placeholder, className = '') => {
+        const item = document.createElement('input');
+        item.className = `input input-bordered input-sm ${className}`;
+        item.value = value ?? '';
+        item.placeholder = placeholder;
+        return item;
+    };
+    const select = (className, values, selectedValue) => {
+        const item = document.createElement('select');
+        item.className = `select select-bordered select-sm ${className}`;
+        values.forEach(([value, label]) => item.appendChild(new Option(label, value, false, value === selectedValue)));
+        return item;
+    };
+    
+    function removeButton(row) {
+        // rows do not exist  until saved
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'btn btn-sm btn-square btn-outline btn-error';
+        button.textContent = '×';
+        button.onclick = () => {
+            row.remove();
+            changed();
+        };
+        return button;
+    }
+    
+    function moveButton(row, direction) {
+        // order in the dom becomes order in the saved config
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'btn btn-sm btn-square btn-outline';
+        button.textContent = direction < 0 ? '↑' : '↓';
+        button.onclick = () => {
+            const sibling = direction < 0 ? row.previousElementSibling : row.nextElementSibling;
+            if (sibling) row.parentElement.insertBefore(direction < 0 ? row : sibling, direction < 0 ? sibling : row);
+            changed();
+        };
+        return button;
+    }
+    
+    function setDirty(value) {
+        // do not silently throw away a omstly done pool
+        dirty = value;
+        document.getElementById('dirty').classList.toggle('hidden', !value);
+    }
+    
+    function showErrors(errors) {
+        const box = document.getElementById('validation-errors'),
+            list = box.querySelector('ul');
+        list.replaceChildren();
+        (errors || []).forEach(error => {
+            const item = document.createElement('li');
+            item.textContent = error;
+            list.appendChild(item);
+        });
+        box.classList.toggle('hidden', !errors?.length);
+    }
+    
+    function changed() {
+        setDirty(true);
+        clearTimeout(validationTimer);
+        validationTimer = setTimeout(validateEditor, 300);
+    }
+    
+    function renderMultipliers(values) {
+        // every known mod gets a multiplier, including nomod
+        const list = document.getElementById('score-multipliers');
+        list.replaceChildren();
+        Object.entries(state.mods).forEach(([mod, name]) => {
+            const label = document.createElement('label');
+            label.className = 'form-control';
+            label.dataset.mod = mod;
+            const title = document.createElement('span');
+            title.className = 'label-text';
+            title.textContent = `${name} (${mod})`;
+            const value = input(values?.[mod] ?? 1.0, '1.0', 'mod-multiplier');
+            value.type = 'number';
+            value.min = '0.000001';
+            value.step = 'any';
+            value.required = true;
+            label.append(title, value);
+            list.appendChild(label);
+        });
+    }
+    
+    function mapField(value, labelText, placeholder, className, required = false) {
+        const label = document.createElement('label');
+        label.className = 'form-control';
+        const title = document.createElement('span');
+        title.className = 'label-text';
+        title.textContent = `${labelText}${required ? ' *' : ' (optional)'}`;
+        const field = input(value, placeholder, className);
+        field.required = required;
+        label.append(title, field);
+        return label;
+    }
+    
+    function mapIdForRow(row) {
+        // map id is optional, so borrow it from the command when possible
+        const entered = row.querySelector('.map-osu-id').value.trim();
+        return entered || row.querySelector('.map-command').value.match(/^!mp\s+map\s+([0-9]+)/i)?.[1] || '';
+    }
+    
+    function fetchMetadataForRow(row, notify = true) {
+        // metadata is display fluff; commands remain the source of truth
+        const mapId = mapIdForRow(row);
+        if (!mapId) return Promise.resolve({
+            skipped: true
+        });
+        const button = row.querySelector('.fetch-map-metadata');
+        button.disabled = true;
+        return new Promise(resolve => socket.emit('tournament_fetch_map_metadata', {
+            map_id: mapId
+        }, result => {
+            button.disabled = false;
+            if (!result.ok) {
+                if (notify) fail(result);
+                return resolve({
+                    error: result.errors?.[0]
+                });
+            }
+            row.querySelector('.map-osu-id').value = result.data.map_id;
+            row.querySelector('.map-name').value = result.data.name;
+            changed();
+            if (notify) makeNotification('Map metadata fetched.', 3000, 'success');
+            resolve({
+                fetched: true
+            });
+        }));
+    }
+    
+    function addMap(list, map = {}) {
+        // required commands first, optional labels second
+        const row = document.createElement('div');
+        row.className = 'map-row rounded border border-base-content p-3 space-y-3';
+        row.dataset.id = map.id || crypto.randomUUID();
+        const required = document.createElement('div');
+        required.className = 'grid gap-2 md:grid-cols-2';
+        const requiredTitle = document.createElement('p');
+        requiredTitle.className = 'font-semibold md:col-span-2';
+        requiredTitle.textContent = 'Required';
+        required.append(requiredTitle, mapField(map.designator, 'Designator', 'NM1', 'map-designator', true), mapField(map.map_command, 'Full map command', '!mp map 123', 'map-command', true), mapField(map.mods_command, 'Full mods command', '!mp mods NF', 'map-mods-command', true));
+        const optional = document.createElement('div');
+        optional.className = 'grid gap-2 md:grid-cols-3 rounded bg-base-100 p-3';
+        const optionalTitle = document.createElement('p');
+        optionalTitle.className = 'font-semibold md:col-span-3';
+        optionalTitle.textContent = 'Optional display information';
+        optional.append(optionalTitle, mapField(map.name, 'Map name', 'Artist - Title [Difficulty]', 'map-name'), mapField(map.map_id, 'osu! map ID', '123', 'map-osu-id'), mapField((map.mods || []).join(' '), 'Display mods', 'NF NM', 'map-mods'));
+        const fetchMetadata = document.createElement('button');
+        fetchMetadata.type = 'button';
+        fetchMetadata.className = 'fetch-map-metadata btn btn-sm btn-outline md:col-span-3 justify-self-start';
+        fetchMetadata.textContent = 'Fetch metadata';
+        fetchMetadata.onclick = () => fetchMetadataForRow(row);
+        optional.appendChild(fetchMetadata);
+        const controls = document.createElement('div');
+        controls.className = 'flex gap-2';
+        controls.append(moveButton(row, -1), moveButton(row, 1), removeButton(row));
+        row.append(required, optional, controls);
+        list.appendChild(row);
+    }
+    
+    function addPool(pool = {}) {
+        // pools own their maps and their ordering
+        const card = document.createElement('div');
+        card.className = 'pool-row card border border-base-content bg-base-200';
+        card.dataset.id = pool.id || crypto.randomUUID();
+        const body = document.createElement('div');
+        body.className = 'card-body';
+        const head = document.createElement('div');
+        head.className = 'flex flex-wrap gap-2';
+        const name = input(pool.name, 'Pool name, e.g. Finals', 'pool-name flex-1');
+        const maps = document.createElement('div');
+        maps.className = 'pool-maps space-y-3';
+        head.append(name, moveButton(card, -1), moveButton(card, 1), removeButton(card));
+        body.append(head, maps);
+        (pool.map_order || []).forEach(id => pool.maps?.[id] && addMap(maps, pool.maps[id]));
+        const actions = document.createElement('div');
+        actions.className = 'flex flex-wrap gap-2';
+        const add = document.createElement('button');
+        add.type = 'button';
+        add.className = 'btn btn-sm btn-outline';
+        add.textContent = 'Add map';
+        add.onclick = () => {
+            addMap(maps);
+            changed();
+        };
+        const importTip = document.createElement('div');
+        importTip.className = 'tooltip';
+        importTip.dataset.tip = 'Looks for: name, !mp mods [anything], !mp map [anything]';
+        const importButton = document.createElement('button');
+        importButton.type = 'button';
+        importButton.className = 'btn btn-sm btn-outline';
+        importButton.textContent = 'Import maps';
+        importButton.onclick = () => {
+            importTarget = maps;
+            document.getElementById('mappool-import-text').value = '';
+            document.getElementById('mappool-import').showModal();
+        };
+        importTip.appendChild(importButton);
+        const fetchAll = document.createElement('button');
+        fetchAll.type = 'button';
+        fetchAll.className = 'btn btn-sm btn-outline';
+        fetchAll.textContent = 'Fetch all metadata';
+        fetchAll.onclick = async () => {
+            // fetch in order so we do not hammer osu for no reason
+            const rows = Array.from(maps.querySelectorAll('.map-row'));
+            let fetched = 0,
+                skipped = 0,
+                failed = 0;
+            fetchAll.disabled = true;
+            for (let index = 0; index < rows.length; index++) {
+                fetchAll.textContent = `Fetching ${index + 1}/${rows.length}`;
+                const result = await fetchMetadataForRow(rows[index], false);
+                if (result.fetched) fetched++;
+                else if (result.skipped) skipped++;
+                else failed++;
+            }
+            fetchAll.disabled = false;
+            fetchAll.textContent = 'Fetch all metadata';
+            makeNotification(`Metadata: ${fetched} fetched, ${skipped} skipped, ${failed} failed.`, 5000, failed ? 'warning' : 'success');
+        };
+        actions.append(add, importTip, fetchAll);
+        body.appendChild(actions);
+        card.appendChild(body);
+        document.getElementById('mappools').appendChild(card);
+    }
+    
+    function renderPools(item) {
+        const list = document.getElementById('mappools');
+        list.replaceChildren();
+        (item.mappool_order || []).forEach(id => item.mappools?.[id] && addPool(item.mappools[id]));
+    }
+    
+    function addTrigger(trigger = {}) {
+        // same trigger shape as settings
+        const row = document.createElement('div');
+        row.className = 'trigger-row rounded border border-base-content p-3 grid gap-2 lg:grid-cols-4';
+        row.dataset.id = trigger.id || crypto.randomUUID();
+        row.append(input(trigger.name, 'Name', 'trigger-name'), input(trigger.pattern, 'Text or regex', 'trigger-pattern'), input(trigger.sender, 'Optional sender', 'trigger-sender'), select('trigger-mode', [
+            ['literal', 'Literal'],
+            ['regex', 'Regex']
+        ], trigger.mode || 'literal'), select('trigger-scope', [
+            ['all', 'All chat'],
+            ['pm', 'Private messages'],
+            ['match', 'MP rooms'],
+            ['channel', 'Public channels']
+        ], trigger.scope || 'all'), select('trigger-asset', state.sound_assets.map(item => [item.id, item.name]), trigger.asset_id || ''));
+        [
+            ['enabled', 'Enabled', trigger.enabled !== false],
+            ['case-sensitive', 'Case sensitive', trigger.case_sensitive]
+        ].forEach(([key, label, checked]) => {
+            const wrapper = document.createElement('label');
+            wrapper.className = 'label cursor-pointer justify-start gap-2';
+            const box = document.createElement('input');
+            box.type = 'checkbox';
+            box.className = `checkbox checkbox-sm trigger-${key}`;
+            box.checked = Boolean(checked);
+            wrapper.append(box, document.createTextNode(label));
+            row.appendChild(wrapper);
+        });
+        row.appendChild(removeButton(row));
+        document.getElementById('sound-triggers').appendChild(row);
+    }
+    
+    function renderTriggers(triggers) {
+        const list = document.getElementById('sound-triggers');
+        list.replaceChildren();
+        (triggers || []).forEach(addTrigger);
+    }
+    
+    function renderAssets() {
+        // sounds are global assets even when the trigger is tournament-only
+        const list = document.getElementById('sound-assets');
+        list.replaceChildren();
+        state.sound_assets.forEach(asset => {
+            const row = document.createElement('div');
+            row.className = 'flex items-center gap-2';
+            const name = document.createElement('span');
+            name.className = 'flex-1';
+            name.textContent = asset.name;
+            const preview = document.createElement('button');
+            preview.type = 'button';
+            preview.className = 'btn btn-sm btn-outline';
+            preview.textContent = 'Preview';
+            preview.onclick = () => new Audio(asset.url).play();
+            row.append(name, preview);
+            if (!asset.builtin) {
+                const remove = document.createElement('button');
+                remove.type = 'button';
+                remove.className = 'btn btn-sm btn-outline btn-error';
+                remove.textContent = 'Delete';
+                remove.onclick = () => socket.emit('sound_delete', {
+                    id: asset.id
+                }, result => result.ok ? socket.emit('tournament_list', response => response.ok && render(response.data)) : fail(result));
+                row.appendChild(remove);
+            }
+            list.appendChild(row);
+        });
+    }
+    
+    function readEditor() {
+        // revolutionary dom-as-draft system
+        const item = structuredClone(selected);
+        item.name = document.getElementById('t-name').value.trim();
+        item.color = document.getElementById('t-color').value;
+        item.timer = Number(document.getElementById('t-timer').value);
+        item.start_timer = Number(document.getElementById('t-start-timer').value);
+        const mod_multipliers = {};
+        document.querySelectorAll('[data-mod]').forEach(row => mod_multipliers[row.dataset.mod] = row.querySelector('input').value);
+        item.score_calculation = {
+            enabled: document.getElementById('score-enabled').checked,
+            mod_multipliers
+        };
+        item.mappools = {};
+        item.mappool_order = [];
+        document.querySelectorAll('.pool-row').forEach(poolRow => {
+            const pool = {
+                id: poolRow.dataset.id,
+                name: poolRow.querySelector('.pool-name').value.trim(),
+                maps: {},
+                map_order: []
+            };
+            poolRow.querySelectorAll('.map-row').forEach(mapRow => {
+                const id = mapRow.dataset.id,
+                    osuMapId = mapRow.querySelector('.map-osu-id').value.trim();
+                pool.map_order.push(id);
+                pool.maps[id] = {
+                    id,
+                    designator: mapRow.querySelector('.map-designator').value.trim(),
+                    name: mapRow.querySelector('.map-name').value.trim(),
+                    map_id: osuMapId ? Number(osuMapId) : null,
+                    mods: mapRow.querySelector('.map-mods').value.trim().split(/\s+/).filter(Boolean),
+                    map_command: mapRow.querySelector('.map-command').value,
+                    mods_command: mapRow.querySelector('.map-mods-command').value
+                };
+            });
+            item.mappool_order.push(pool.id);
+            item.mappools[pool.id] = pool;
+        });
+        item.sound_triggers = Array.from(document.querySelectorAll('.trigger-row')).map(row => ({
+            id: row.dataset.id,
+            name: row.querySelector('.trigger-name').value.trim(),
+            pattern: row.querySelector('.trigger-pattern').value,
+            sender: row.querySelector('.trigger-sender').value.trim(),
+            mode: row.querySelector('.trigger-mode').value,
+            scope: row.querySelector('.trigger-scope').value,
+            asset_id: row.querySelector('.trigger-asset').value,
+            enabled: row.querySelector('.trigger-enabled').checked,
+            case_sensitive: row.querySelector('.trigger-case-sensitive').checked
+        }));
+        return item;
+    }
+    
+    function openEditor(item) {
+        // edit a copy so cancelling cannot mutate server state
+        selected = structuredClone(item);
+        document.getElementById('editor').classList.remove('hidden');
+        document.getElementById('editor-title').textContent = item.name;
+        document.getElementById('t-name').value = item.name;
+        document.getElementById('t-color').value = item.color;
+        document.getElementById('t-timer').value = item.timer;
+        document.getElementById('t-start-timer').value = item.start_timer;
+        document.getElementById('score-enabled').checked = Boolean(item.score_calculation?.enabled);
+        renderMultipliers(item.score_calculation?.mod_multipliers);
+        renderPools(item);
+        renderAssets();
+        renderTriggers(item.sound_triggers);
+        showErrors(item.errors);
+        const validity = document.getElementById('validity');
+        validity.textContent = item.valid ? 'Valid' : 'Draft';
+        validity.className = `badge ${item.valid ? 'badge-success' : 'badge-warning'}`;
+        setDirty(false);
+    }
+    
+    function render(next) {
+        // redraw from the last state accepted by the backend
+        state = next;
+        document.getElementById('tournament-enabled').checked = state.enabled;
+        document.getElementById('tournament-enabled').disabled = !state.tournaments.some(item => item.valid);
+        const list = document.getElementById('tournament-list');
+        list.replaceChildren();
+        state.tournaments.forEach(item => {
+            const button = document.createElement('button');
+            button.className = 'flex items-center gap-2 p-2 rounded hover:bg-base-300 text-left';
+            const dot = document.createElement('span');
+            dot.className = 'w-3 h-3 rounded-full';
+            dot.style.backgroundColor = item.color;
+            const text = document.createElement('span');
+            text.className = 'flex-1';
+            text.textContent = item.name;
+            const badge = document.createElement('span');
+            badge.className = `badge badge-sm ${item.valid ? 'badge-success' : 'badge-warning'}`;
+            badge.textContent = (state.in_use[item.id] || []).length ? 'In Use' : item.valid ? 'Valid' : 'Draft';
+            button.append(dot, text, badge);
+            button.onclick = () => {
+                if (!dirty || confirm('Discard unsaved changes?')) openEditor(item);
+            };
+            list.appendChild(button);
+        });
+        if (selected) {
+            const updated = state.tournaments.find(item => item.id === selected.id);
+            if (updated && !dirty) openEditor(updated);
+        }
+    }
+    
+    function request(name, data, callback) {
+        // tournament requests all use the same boring response shape
+        socket.emit(name, data || {}, result => result.ok ? callback(result.data) : fail(result));
+    }
+    
+    function validateEditor() {
+        if (!selected) return;
+        socket.emit('tournament_validate', {
+            tournament: readEditor()
+        }, result => showErrors(result.errors || []));
+    }
+    // editor navigation
+    document.querySelectorAll('[data-editor-tab]').forEach(tab => tab.onclick = () => {
+        document.querySelectorAll('[data-editor-tab]').forEach(item => item.classList.toggle('tab-active', item === tab));
+        document.querySelectorAll('.editor-panel').forEach(panel => panel.classList.toggle('hidden', panel.id !== `editor-${tab.dataset.editorTab}`));
+    });
+    document.getElementById('editor').addEventListener('input', changed);
+    document.getElementById('editor').addEventListener('change', changed);
+    document.getElementById('add-mappool').onclick = () => {
+        addPool();
+        changed();
+    };
+    document.getElementById('add-trigger').onclick = () => {
+        addTrigger();
+        changed();
+    };
+    document.getElementById('mappool-import-cancel').onclick = () => {
+        importTarget = null;
+        document.getElementById('mappool-import').close();
+    };
+    document.getElementById('mappool-import-confirm').onclick = () => {
+        socket.emit('tournament_import_mappool', {
+            text: document.getElementById('mappool-import-text').value
+        }, result => {
+            if (!result.ok) return fail(result);
+            result.data.maps.forEach(map => addMap(importTarget, map));
+            changed();
+            document.getElementById('mappool-import').close();
+            importTarget = null;
+            makeNotification(`${result.data.maps.length} maps imported.`, 3000, 'success');
+        });
+    };
+    document.getElementById('new-tournament').onclick = () => request('tournament_create', {}, data => {
+        render(data.state);
+        openEditor(data.tournament);
+    });
+    document.getElementById('save-tournament').onclick = () => request('tournament_save', {
+        tournament: readEditor()
+    }, data => {
+        render(data.state);
+        openEditor(data.tournament);
+        makeNotification(data.tournament.valid ? 'Tournament saved and valid.' : 'Tournament draft saved.', 3000, data.tournament.valid ? 'success' : 'warning');
+    });
+    document.getElementById('validate-tournament').onclick = validateEditor;
+    document.getElementById('duplicate-tournament').onclick = () => request('tournament_duplicate', {
+        id: selected.id
+    }, data => {
+        render(data.state);
+        openEditor(data.tournament);
+    });
+    document.getElementById('clear-assignments').onclick = () => {
+        const channels = state.in_use[selected.id] || [];
+        if (!channels.length) return makeNotification('This tournament is not assigned.', 3000, 'info');
+        if (confirm(`Clear this tournament from: ${channels.join(', ')}?`)) request('tournament_clear_assignments', {
+            id: selected.id
+        }, () => socket.emit('tournament_list', result => render(result.data)));
+    };
+    document.getElementById('delete-tournament').onclick = () => {
+        if (confirm('Delete this tournament?')) request('tournament_delete', {
+            id: selected.id
+        }, data => {
+            selected = null;
+            document.getElementById('editor').classList.add('hidden');
+            render(data);
+        });
+    };
+    document.getElementById('tournament-enabled').onchange = event => request('tournament_toggle', {
+        enabled: event.target.checked
+    }, render);
+    document.getElementById('sound-upload').onsubmit = async event => {
+        // files use http, everything else stays on the socket
+        event.preventDefault();
+        const file = document.getElementById('sound-file').files[0];
+        if (!file) return;
+        const body = new FormData();
+        body.append('sound', file);
+        const result = await (await fetch('/api/sounds', {
+            method: 'POST',
+            body
+        })).json();
+        if (!result.ok) return fail(result);
+        socket.emit('tournament_list', response => {
+            if (response.ok) {
+                const draft = dirty ? readEditor() : null;
+                render(response.data);
+                if (draft) {
+                    openEditor(draft);
+                    setDirty(true);
+                }
+            }
+        });
+    };
+    // from server
+    socket.on('tournament_state', render);
+    socket.emit('tournament_list', result => result.ok ? render(result.data) : fail(result));
+    window.addEventListener('beforeunload', event => {
+        if (dirty) {
+            event.preventDefault();
+            event.returnValue = '';
+        }
+    });
+</script>
+{% endblock %}
