@@ -1,16 +1,13 @@
 import mimetypes
-import re
 import uuid
 from pathlib import Path
-
-try:
-    # this one has timeouts; stdlib re is the emergency spare
-    import regex as safe_regex
-except ImportError:
-    safe_regex = None
+import regex
 
 from settings import BUILTIN_AUDIO_IDS, VALID_AUDIO_EXTENSIONS, normalize_username
 
+# gonna be honest and say that like
+# i don't understand how half of this code works because i dont understand mimetypes
+# half of it was built from random stackoverflow/reddit posts
 
 BUILTIN_SOUNDS = [asset_id.split(':', 1)[1] for asset_id in sorted(BUILTIN_AUDIO_IDS)]
 
@@ -56,12 +53,9 @@ def matching_sounds(settings, sender, content, channel, channel_type):
         try:
             if trigger['mode'] == 'literal':
                 matched = pattern in source
-            elif safe_regex:
-                flags = 0 if trigger['case_sensitive'] else safe_regex.IGNORECASE
-                matched = safe_regex.search(trigger['pattern'], content, flags=flags, timeout=.02) is not None
             else:
-                flags = 0 if trigger['case_sensitive'] else re.IGNORECASE
-                matched = re.search(trigger['pattern'], content, flags=flags) is not None
+                flags = 0 if trigger['case_sensitive'] else regex.IGNORECASE
+                matched = regex.search(trigger['pattern'], content, flags=flags, timeout=.02) is not None
         except Exception:
             # an alert regex does not get to take down chat
             matched = False

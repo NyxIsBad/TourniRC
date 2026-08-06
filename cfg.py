@@ -21,6 +21,7 @@ class userConfig():
         self.password = ''
         self.configdir = configdir
         self.config = ConfigParser()
+        os.makedirs(os.path.dirname(self.configdir) or '.', exist_ok=True)
 
         if not os.path.exists(self.configdir):
             self.create_config()
@@ -81,48 +82,6 @@ class userConfig():
         return f'User: {self.username}\nPassword: {self.password}'
     
 # ----------------- #
-# UI CFG Classes    #
-# ----------------- #
-class uiConfig():
-    def __init__(self, configdir='cfg/ui.ini'):
-        self.theme = 'dark'
-        self.configdir = configdir
-        self.config = ConfigParser()
-
-        if not os.path.exists(self.configdir):
-            self.create_config()
-        else:
-            self.load_config()
-    
-    def create_config(self):
-        self.config['THEME'] = {
-            'theme': 'dark'
-        }
-
-        with open(self.configdir, 'w') as configfile:
-            self.config.write(configfile)
-        # print(f'Created config for {self.username}')
-
-    def load_config(self):
-        self.config.read(self.configdir)
-        self.theme = self.config['THEME']['theme']
-
-    def get_theme(self):
-        self.load_config()
-        return self.theme
-
-    def set_theme(self, theme_name):
-        if theme_name in THEMES:
-            self.theme = theme_name
-            self.config['THEME']['theme'] = theme_name
-        with open(self.configdir, 'w') as configfile:
-            self.config.write(configfile)
-        # print(f'Set password for {self.username}')
-
-    def __str__(self):
-        return f'Theme: {self.theme}'
-    
-# ----------------- #
 # Room CFG Classes  #
 # ----------------- #
 
@@ -131,6 +90,7 @@ class roomsConfig():
         self.rooms = []
         self.max_rooms = self._clean_limit(max_rooms)
         self.configdir = configdir
+        os.makedirs(os.path.dirname(self.configdir) or '.', exist_ok=True)
         self.config = ConfigParser()
 
         if not os.path.exists(self.configdir):
@@ -140,16 +100,12 @@ class roomsConfig():
 
     def create_config(self):
         self.config['ROOMS'] = {
-            'rooms': '',
-            'max_rooms': str(self.max_rooms)
+            'rooms': ''
         }
         self._write()
 
     def load_configs(self):
         self.config.read(self.configdir)
-        self.max_rooms = self._clean_limit(
-            self.config.get('ROOMS', 'max_rooms', fallback=str(self.max_rooms))
-        )
         # only load rooms, no pms or empty entries
         raw_rooms = self.config.get('ROOMS', 'rooms', fallback='').split(',')
         rooms_by_key = {}
@@ -166,8 +122,8 @@ class roomsConfig():
         self._write()
 
     def _write(self):
+        self.config.remove_option('ROOMS', 'max_rooms')
         self.config.set('ROOMS', 'rooms', ','.join(self.rooms))
-        self.config.set('ROOMS', 'max_rooms', str(self.max_rooms))
         with open(self.configdir, 'w') as configfile:
             self.config.write(configfile)
 

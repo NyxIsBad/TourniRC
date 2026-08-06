@@ -7,6 +7,7 @@ import tempfile
 import time
 import uuid
 from pathlib import Path
+from sound_triggers import normalize_triggers
 
 
 # defaults live here so resets and first runs cannot disagree
@@ -21,7 +22,6 @@ DEFAULT_HOTKEYS = {
     **{f'tab_{index}': f'Alt+{index}' for index in range(1, 10)}
 }
 DEFAULT_SETTINGS = {
-    'schema_version': 1,
     'appearance': {'theme': 'dark'},
     'chat': {'room_history_limit': 5, 'blocked_users': []},
     'controls': {
@@ -38,7 +38,6 @@ DEFAULT_SETTINGS = {
 }
 
 ALIAS = re.compile(r'^/[A-Za-z0-9_-]+$')
-VALID_SCOPES = {'all', 'pm', 'match', 'channel'}
 VALID_AUDIO_EXTENSIONS = {'.mp3', '.wav', '.ogg'}
 BUILTIN_AUDIO_IDS = {
     'builtin:alert-metalgear.mp3', 'builtin:alert-pokemon.mp3',
@@ -57,18 +56,14 @@ class SettingsError(ValueError):
 
 
 class SettingsRepository:
-    def __init__(self, path='cfg/settings.json', legacy_ui='cfg/ui.ini', legacy_rooms='cfg/recentrooms.ini'):
+    def __init__(self, path='cfg/settings.json'):
         self.path = Path(path)
-        self.legacy_ui = Path(legacy_ui)
-        self.legacy_rooms = Path(legacy_rooms)
         self.data = copy.deepcopy(DEFAULT_SETTINGS)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.load()
 
     def load(self):
         if not self.path.exists():
-            # old installs get one quiet upgrade
-            self._migrate_legacy()
             self.save()
             return self.data
         try:
@@ -84,20 +79,6 @@ class SettingsRepository:
             self.data = copy.deepcopy(DEFAULT_SETTINGS)
             self.save()
         return self.data
-
-    def _migrate_legacy(self):
-        from configparser import ConfigParser
-
-        if self.legacy_ui.exists():
-            config = ConfigParser()
-            config.read(self.legacy_ui)
-            theme = config.get('THEME', 'theme', fallback='dark')
-            self.data['appearance']['theme'] = theme
-        if self.legacy_rooms.exists():
-            config = ConfigParser()
-            config.read(self.legacy_rooms)
-            limit = config.get('ROOMS', 'max_rooms', fallback='5')
-            self.data['chat']['room_history_limit'] = self._limit(limit)
 
     def save(self):
         # replace atomically so a bad shutdown cannot cut json in half
@@ -164,7 +145,6 @@ class SettingsRepository:
         if not isinstance(candidate, dict):
             raise SettingsError('Settings must be an object.')
         result = copy.deepcopy(DEFAULT_SETTINGS)
-        result['schema_version'] = 1
 
         # appearance
         appearance = candidate.get('appearance', {})
@@ -253,30 +233,12 @@ class SettingsRepository:
                 raise SettingsError('Invalid audio asset.')
             asset_ids.add(asset_id)
             clean_assets.append({'id': asset_id, 'name': str(asset.get('name', asset_id)), 'extension': extension})
-        clean_triggers = []
-        trigger_names = set()
-        for raw in triggers:
-            name = str(raw.get('name', '')).strip()
-            mode = str(raw.get('mode', 'literal'))
-            pattern = str(raw.get('pattern', ''))
-            scope = str(raw.get('scope', 'all'))
-            asset_id = str(raw.get('asset_id', ''))
-            if not name or name.casefold() in trigger_names or mode not in {'literal', 'regex'} or not pattern or len(pattern) > 256 or scope not in VALID_SCOPES:
-                raise SettingsError('Invalid sound trigger.')
-            if asset_id not in asset_ids and asset_id not in BUILTIN_AUDIO_IDS:
-                raise SettingsError('Sound trigger references a missing asset.')
-            if mode == 'regex':
-                try:
-                    re.compile(pattern)
-                except re.error as error:
-                    raise SettingsError(f'Invalid regular expression: {error}')
-            trigger_names.add(name.casefold())
-            clean_triggers.append({
-                'id': str(raw.get('id') or uuid.uuid4()), 'name': name,
-                'enabled': bool(raw.get('enabled', True)), 'mode': mode, 'pattern': pattern,
-                'case_sensitive': bool(raw.get('case_sensitive', False)),
-                'sender': str(raw.get('sender', '')).strip(), 'scope': scope, 'asset_id': asset_id
-            })
+        try:
+            clean_triggers = normalize_triggers(triggers, asset_ids | BUILTIN_AUDIO_IDS)
+        except ValueError as error:
+            raise SettingsError(str(error))
+        for trigger in clean_triggers:
+            trigger['id'] = trigger['id'] or str(uuid.uuid4())
         result['audio'] = {'volume': volume, 'muted': bool(audio.get('muted', False)), 'assets': clean_assets, 'triggers': clean_triggers}
         return result
 

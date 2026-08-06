@@ -10,7 +10,7 @@ from sounds import matching_sounds
 class SettingsRepositoryTests(unittest.TestCase):
     def repository(self, directory):
         root = Path(directory)
-        return SettingsRepository(root / 'settings.json', root / 'ui.ini', root / 'recentrooms.ini')
+        return SettingsRepository(root / 'settings.json')
 
     def test_defaults_are_persistent_and_do_not_customize_banchobot(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -20,14 +20,17 @@ class SettingsRepositoryTests(unittest.TestCase):
             self.assertNotIn('banchobot', json.dumps(repository.data).casefold())
             self.assertEqual(repository.data, self.repository(directory).data)
 
-    def test_legacy_theme_and_room_limit_are_migrated_once(self):
+    def test_theme_and_room_limit_are_owned_by_settings_json(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            (root / 'ui.ini').write_text('[THEME]\ntheme = cupcake\n', encoding='utf-8')
-            (root / 'recentrooms.ini').write_text('[ROOMS]\nmax_rooms = 9\n', encoding='utf-8')
             repository = self.repository(directory)
-            self.assertEqual('cupcake', repository.data['appearance']['theme'])
-            self.assertEqual(9, repository.data['chat']['room_history_limit'])
+            appearance = repository.snapshot()['appearance']; appearance['theme'] = 'cupcake'
+            chat = repository.snapshot()['chat']; chat['room_history_limit'] = 9
+            repository.update_section('appearance', appearance)
+            repository.update_section('chat', chat)
+            loaded = self.repository(directory)
+            self.assertEqual('cupcake', loaded.data['appearance']['theme'])
+            self.assertEqual(9, loaded.data['chat']['room_history_limit'])
+            self.assertNotIn('schema_version', loaded.data)
 
     def test_bad_json_is_preserved_and_replaced_with_defaults(self):
         with tempfile.TemporaryDirectory() as directory:
