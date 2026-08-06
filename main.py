@@ -13,15 +13,13 @@ import signal
 from cfg import userConfig
 from irclib import IrcSessionSupervisor
 from irclog import create_logger
-import ui
-
-
-Log = create_logger('logs/irc.log', logging.DEBUG)
+from runtime_paths import data_dir, logs_dir
 
 # signal handler was too rough
 def stop_application(supervisor, ui_process):
     print('Shutting down...')
-    supervisor.shutdown()
+    if supervisor is not None:
+        supervisor.shutdown()
     if ui_process.is_alive():
         ui_process.terminate()
     ui_process.join()
@@ -34,15 +32,20 @@ if __name__ == "__main__":
     We choose UI because IRC as currently written needs the MainThread event loop
     """
     multiprocessing.freeze_support()
+    import ui
+
     # irc owns the main process; flask gets the spare one
     ui_process = multiprocessing.Process(target=ui.prod_run)
+    log = create_logger(str(logs_dir() / 'irc.log'), logging.DEBUG)
     ui_process.start()
 
-    supervisor = IrcSessionSupervisor(Log)
-    config = userConfig()
+    supervisor = IrcSessionSupervisor(log)
+    config = userConfig(str(data_dir() / 'login.ini'))
     supervisor.submit_credentials(config.get_username(), config.get_password())
 
-    signal.signal(signal.SIGINT, lambda *_: stop_application(supervisor, ui_process))
+    signal.signal(signal.SIGINT, lambda *_: supervisor.shutdown())
+    if hasattr(signal, 'SIGBREAK'):
+        signal.signal(signal.SIGBREAK, lambda *_: supervisor.shutdown())
     print("Navigate to http://localhost:5000 to access the client")
 
     try:

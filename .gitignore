@@ -5,6 +5,8 @@ cfg/
 # Node.js
 node_modules/
 static/css/output.css
+build/
+dist/
 
 # Python related files
 .venv/

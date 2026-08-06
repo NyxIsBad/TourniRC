@@ -22,11 +22,17 @@ import osu_irc
 from utils import *
 from eventlog import EventLog
 from match_parser import parse_match_message
+from runtime_paths import data_dir, logs_dir, resource_root
 
 # globals
-app = Flask(__name__)
+RESOURCE_DIR = resource_root()
+app = Flask(
+    __name__,
+    template_folder=str(RESOURCE_DIR / 'templates'),
+    static_folder=str(RESOURCE_DIR / 'static')
+)
 socketio = SocketIO(app)
-DATA_DIR = Path(os.environ.get('TOURNIRC_CONFIG_DIR', 'cfg'))
+DATA_DIR = data_dir()
 settings_cfg = SettingsRepository(DATA_DIR / 'settings.json')
 rms_cfg = roomsConfig(str(DATA_DIR / 'recentrooms.ini'), max_rooms=settings_cfg.data['chat']['room_history_limit'])
 rms_cfg.set_max_rooms(settings_cfg.data['chat']['room_history_limit'])
@@ -49,7 +55,7 @@ connection_state = {
 }
 backend_instance_id = str(uuid.uuid4())
 pending_credentials = None
-UI_EVENTS = EventLog('ui', 'logs/ui-events.log')
+UI_EVENTS = EventLog('ui', str(logs_dir() / 'ui-events.log'))
 
 
 def log_socket_event(name: str, data: Any = None) -> None:
