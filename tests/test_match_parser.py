@@ -54,8 +54,9 @@ class MatchParserTests(unittest.TestCase):
         ).kind)
         self.assertEqual('mods', parse_banchobot_message('Active mods: HD, HR').kind)
 
-    def test_match_timers_and_player_leaves_are_parsed(self):
-        self.assertEqual(120, parse_banchobot_message('Countdown ends in 2 minutes').seconds)
+    def test_timers_and_player_leaves_are_parsed(self):
+        timer = parse_banchobot_message('Countdown ends in 2 minutes')
+        self.assertEqual(('timer', 120), (timer.kind, timer.seconds))
         self.assertEqual(5, parse_banchobot_message('Match starts in 5 seconds').seconds)
         self.assertEqual('countdown_abort', parse_banchobot_message('Countdown aborted').kind)
         self.assertEqual('match_abort', parse_banchobot_message('Aborted the match').kind)

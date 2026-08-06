@@ -1,6 +1,9 @@
 function setupChannelHotkeys(getTabs, getChannel) {
     // controls can change without reloading chat
-    let controls = {hotkeys: {}, macros: []};
+    let controls = {
+        hotkeys: {},
+        macros: []
+    };
 
     function chordFor(event) {
         // turn browser key events into our stored chord format
@@ -16,7 +19,10 @@ function setupChannelHotkeys(getTabs, getChannel) {
 
     function invokeMacro(macro) {
         // every macro still ends up in the normal send path
-        const send = () => socket.emit('run_macro', {id: macro.id, channel: getChannel()}, result => {
+        const send = () => socket.emit('run_macro', {
+            id: macro.id,
+            channel: getChannel()
+        }, result => {
             if (!result.ok) makeNotification((result.errors || ['Macro failed.']).join('\n'), 5000, 'error');
         });
         if (!macro.confirm) {
@@ -25,14 +31,22 @@ function setupChannelHotkeys(getTabs, getChannel) {
         }
         makeNotification(`Send macro "${macro.name}"?\n${macro.command}`, 0, 'warning', {
             persistent: true,
-            actions: [
-                {label: 'Send', className: 'btn btn-sm btn-error', onClick: send},
-                {label: 'Cancel', className: 'btn btn-sm btn-ghost', onClick: () => {}}
+            actions: [{
+                    label: 'Send',
+                    className: 'btn btn-sm btn-error',
+                    onClick: send
+                },
+                {
+                    label: 'Cancel',
+                    className: 'btn btn-sm btn-ghost',
+                    onClick: () => {}
+                }
             ]
         });
     }
 
     function renderMacroButtons() {
+        // buttons are just another way to run the same macro
         const container = document.getElementById('macro-buttons');
         if (!container) return;
         container.replaceChildren();
@@ -47,14 +61,19 @@ function setupChannelHotkeys(getTabs, getChannel) {
     }
 
     function setSettings(settings) {
+        // settings can arrive again after another page saves them
         controls = settings.controls || controls;
         renderMacroButtons();
     }
 
+    // from server
     socket.on('settings_changed', setSettings);
     socket.on('macro_confirmation', macro => invokeMacro(macro));
-    socket.emit('settings_get', result => { if (result && result.ok) setSettings(result.data); });
+    socket.emit('settings_get', result => {
+        if (result && result.ok) setSettings(result.data);
+    });
 
+    // keyboard handling
     document.addEventListener('keydown', event => {
         // typing takes priority over shortcuts. shocking, I know.
         if (event.metaKey || document.querySelector('dialog[open]')) return;

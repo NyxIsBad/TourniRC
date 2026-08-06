@@ -251,7 +251,7 @@ def parse_banchobot_message(content: str) -> Optional[MatchEvent]:
         seconds = int(countdown.group('count'))
         if countdown.group('unit').lower().startswith('minute'):
             seconds *= 60
-        return MatchEvent(kind='match_timer', seconds=seconds)
+        return MatchEvent(kind='timer', seconds=seconds)
 
     # save the raw result now; calculating winners is tournament territory
     player_finished = PLAYER_FINISHED.fullmatch(content)
