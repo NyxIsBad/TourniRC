@@ -6,15 +6,25 @@
     <title>{% block title %}TourniRC{% endblock %}</title>
     <!-- Daisy UI & Tailwind CSS import -->
     <link href="{{ url_for('static', filename='css/output.css') }}" rel="stylesheet">
+    <style>
+        .tournaments-nav-active {
+            border-radius: var(--rounded-btn, .5rem);
+            animation: tournament-nav-pulse 2.4s ease-in-out infinite;
+        }
+        @keyframes tournament-nav-pulse {
+            0%, 100% { background-color: transparent; }
+            50% { background-color: var(--fallback-p, oklch(var(--p) / .55)); }
+        }
+    </style>
     <!-- Socket IO -->
     <!-- At header to guarantee priority -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js" integrity="sha512-q/dWJ3kcmjBLU4Qc47E4A9kTB4m3wuTY7vkFJDTZKjTs8jhyGQnaUrxa0Ytd0ssMZhbNua9hE+E7Qv1j+DyZwA==" crossorigin="anonymous"></script>
     <script type="text/javascript" charset="utf-8">
-        var socket = io();
-        socket.on('connect', function() {
-            console.log('Connected to server');
-        });
-    </script>
+    var socket = io();
+    socket.on('connect', function() {
+        console.log('Connected to server');
+    });
+</script>
 </head>
 <body class="flex flex-col min-h-screen">
     <!-- Navbar Header -->
@@ -41,6 +51,7 @@
                         class="menu menu-sm dropdown-content bg-base-100 rounded-box z-[1] mt-3 w-52 p-2 shadow">
                         <li><a href="/">Chat</a></li>
                         <li><a href="/settings">Settings</a></li>
+                        <li><a class="tournaments-nav" href="/tournaments">Tournaments</a></li>
                         <li><a href="/help">Help</a></li>
                     </ul>
                 </div>
@@ -50,6 +61,7 @@
                 <ul class="menu menu-horizontal px-1">
                     <li><a href="/">Chat</a></li>
                     <li><a href="/settings">Settings</a></li>
+                    <li><a class="tournaments-nav" href="/tournaments">Tournaments</a></li>
                     <li><a href="/help">Help</a></li>
                 </ul>
             </div>
@@ -59,7 +71,7 @@
                         <div tabindex="0" role="button" class="btn btn-ghost rounded-btn">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M4.098 19.902a3.75 3.75 0 0 0 5.304 0l6.401-6.402M6.75 21A3.75 3.75 0 0 1 3 17.25V4.125C3 3.504 3.504 3 4.125 3h5.25c.621 0 1.125.504 1.125 1.125v4.072M6.75 21a3.75 3.75 0 0 0 3.75-3.75V8.197M6.75 21h13.125c.621 0 1.125-.504 1.125-1.125v-5.25c0-.621-.504-1.125-1.125-1.125h-4.072M10.5 8.197l2.88-2.88c.438-.439 1.15-.439 1.59 0l3.712 3.713c.44.44.44 1.152 0 1.59l-2.879 2.88M6.75 17.25h.008v.008H6.75v-.008Z" />
-                            </svg>                          
+                            </svg>
                             Theme
                         </div>
                         <ul
@@ -102,7 +114,7 @@
             </aside>
         </div>
     </footer>
-    
+
     <!-- Toasts/Notifications -->
     <div class="toast" id="toasts">
     </div>
@@ -127,231 +139,254 @@
     </div>
     <!-- JavaScript to handle theme switching and persistence -->
     <script>
-        const keyedToasts = new Map();
-        function makeNotification(content, duration, type, options = {}) {
-            // keyed toasts update instead of breeding in the corner
-            const toasts = document.getElementById('toasts');
-            let alert_element = options.key ? keyedToasts.get(options.key) : null;
-            if (alert_element && !alert_element.isConnected) alert_element = null;
-            if (!alert_element) {
-                alert_element = document.createElement('div');
-                alert_element.innerHTML = '<div class="flex flex-wrap items-start overflow-x-hidden justify-between w-72"></div><progress class="progress w-72 mt-2" value="0" max="100"></progress>';
-                toasts.appendChild(alert_element);
-                if (options.key) keyedToasts.set(options.key, alert_element);
-            }
-            alert_element.className = `alert alert-${type} flex flex-col opacity-0 transition-opacity duration-500`;
-            // alert-info alert-success alert-warning alert-error
-            const div = alert_element.querySelector('div');
-            div.replaceChildren();
-            const span = document.createElement('span');
-            span.classList.add('self-start', 'overflow-hidden', 'text-ellipsis', 'flex-1', 'whitespace-pre-wrap', 'mr-2');
-            span.textContent = content;
-            div.appendChild(span);
-            (options.actions || []).forEach(action => {
-                // confirmation stays local; no mystery server callback
-                const actionButton = document.createElement('button');
-                actionButton.className = action.className || 'btn btn-sm';
-                actionButton.textContent = action.label;
-                actionButton.addEventListener('click', () => {
-                    action.onClick();
-                    dismissNotification(alert_element, options.key);
-                });
-                div.appendChild(actionButton);
-            });
-            const button = document.createElement('button');
-            button.classList.add('whitespace-nowrap', 'self-center', 'toast-close', 'mr-1');
-            button.setAttribute('aria-label', 'Close');
-            button.textContent = '×';
-            div.appendChild(button);
-            button.addEventListener('click', () => dismissNotification(alert_element, options.key));
-            clearTimeout(alert_element.dismissTimer);
-            clearInterval(alert_element.progressTimer);
-            setTimeout(() => {
-                alert_element.classList.remove('opacity-0');
-                alert_element.classList.add('opacity-100');
-            }, 10);
-            const progress_bar = alert_element.querySelector('.progress');
-            progress_bar.classList.toggle('hidden', options.persistent === true);
-            progress_bar.value = 0;
-            let progress = 0;
-            if (!options.persistent) {
-                alert_element.progressTimer = setInterval(() => {
-                    progress += 100 / (duration / 50);
-                    progress_bar.value = progress;
-                    if (progress >= 100) clearInterval(alert_element.progressTimer);
-                }, 50);
-                alert_element.dismissTimer = setTimeout(() => dismissNotification(alert_element, options.key), duration);
-            }
-            return alert_element;
-        }
-        function dismissNotification(element, key) {
-            clearTimeout(element.dismissTimer);
-            clearInterval(element.progressTimer);
-            element.classList.remove('opacity-100');
-            element.classList.add('opacity-0');
-            if (key) keyedToasts.delete(key);
-            setTimeout(() => element.remove(), 500);
-        }
-        function debug_func(data) {
-            socket.emit('debug', {'data': data});
-        }
-        document.addEventListener('DOMContentLoaded', () => {
-            // Set theme from cookie
-            const themeCookie = document.cookie.split('; ').find(row => row.startsWith('theme='));
-            if (themeCookie) {
-                const theme = themeCookie.split('=')[1];
-                document.documentElement.setAttribute('data-theme', theme);
-            }
+    const keyedToasts = new Map();
 
-            // Event listener for theme change
-            const themeItems = document.querySelectorAll('.theme-item');
-            themeItems.forEach(item => {
-                item.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    const theme = e.target.closest('button').getAttribute('data-theme');
-                    if (!theme) {
-                        console.error("Theme attribute not found on clicked element");
-                        return;
-                    }
-                    console.log('Theme:', theme);
-                    document.documentElement.setAttribute('data-theme', theme);
-                    document.cookie = `theme=${encodeURIComponent(theme)}; path=/; max-age=31536000; SameSite=Lax`;
-                    socket.emit('theme', {'theme': theme});
-                });
+    function makeNotification(content, duration, type, options = {}) {
+        // keyed toasts update instead of breeding in the corner
+        const toasts = document.getElementById('toasts');
+        let alert_element = options.key ? keyedToasts.get(options.key) : null;
+        if (alert_element && !alert_element.isConnected) alert_element = null;
+        if (!alert_element) {
+            alert_element = document.createElement('div');
+            alert_element.innerHTML = '<div class="flex flex-wrap items-start overflow-x-hidden justify-between w-72"></div><progress class="progress w-72 mt-2" value="0" max="100"></progress>';
+            toasts.appendChild(alert_element);
+            if (options.key) keyedToasts.set(options.key, alert_element);
+        }
+        alert_element.className = `alert alert-${type} flex flex-col opacity-0 transition-opacity duration-500`;
+        // alert-info alert-success alert-warning alert-error
+        const div = alert_element.querySelector('div');
+        div.replaceChildren();
+        const span = document.createElement('span');
+        span.classList.add('self-start', 'overflow-hidden', 'text-ellipsis', 'flex-1', 'whitespace-pre-wrap', 'mr-2');
+        span.textContent = content;
+        div.appendChild(span);
+        (options.actions || []).forEach(action => {
+            // confirmation stays local; no mystery server callback
+            const actionButton = document.createElement('button');
+            actionButton.className = action.className || 'btn btn-sm';
+            actionButton.textContent = action.label;
+            actionButton.addEventListener('click', () => {
+                action.onClick();
+                dismissNotification(alert_element, options.key);
             });
-            
+            div.appendChild(actionButton);
         });
-        socket.on('notif', function(data) {
-            makeNotification(
-                data.content,
-                data.duration ? data.duration : 5000,
-                data.type ? data.type : ''
-            )
-        });
-        socket.on('blocked_pm', function(data) {
-            const content = data.count === 1
-                ? `Blocked a private message from ${data.sender}.`
-                : `Blocked ${data.count} private messages from ${data.sender}.`;
-            makeNotification(content, 5000, 'error', {key: `blocked:${data.key}`});
-        });
-        socket.on('play_sounds', function(data) {
-            // browsers may reject autoplay. their problem, quietly.
-            (data.sounds || []).forEach(sound => {
-                const audio = new Audio(sound.url);
-                audio.volume = Math.max(0, Math.min(Number(sound.volume) || 0, 1));
-                audio.play().catch(error => console.warn('Sound playback failed:', error));
-            });
-        });
-        let backendUnavailable = false;
-        let backendInstanceId = null;
-        let backendRestarted = false;
-        let backendHasCredentials = false;
-        let lastConnectionState = null;
-        let backendWarningTimer = null;
-        function clearBackendWarningTimer() {
-            if (!backendWarningTimer) return;
-            clearTimeout(backendWarningTimer);
-            backendWarningTimer = null;
+        const button = document.createElement('button');
+        button.classList.add('whitespace-nowrap', 'self-center', 'toast-close', 'mr-1');
+        button.setAttribute('aria-label', 'Close');
+        button.textContent = '×';
+        div.appendChild(button);
+        button.addEventListener('click', () => dismissNotification(alert_element, options.key));
+        clearTimeout(alert_element.dismissTimer);
+        clearInterval(alert_element.progressTimer);
+        setTimeout(() => {
+            alert_element.classList.remove('opacity-0');
+            alert_element.classList.add('opacity-100');
+        }, 10);
+        const progress_bar = alert_element.querySelector('.progress');
+        progress_bar.classList.toggle('hidden', options.persistent === true);
+        progress_bar.value = 0;
+        let progress = 0;
+        if (!options.persistent) {
+            alert_element.progressTimer = setInterval(() => {
+                progress += 100 / (duration / 50);
+                progress_bar.value = progress;
+                if (progress >= 100) clearInterval(alert_element.progressTimer);
+            }, 50);
+            alert_element.dismissTimer = setTimeout(() => dismissNotification(alert_element, options.key), duration);
         }
-        function scheduleBackendUnavailable(reason) {
-            // page navigation looks disconnected for a moment, because of course it does
-            if (window.location.pathname === '/login' || backendWarningTimer) return;
-            backendWarningTimer = setTimeout(() => {
-                backendWarningTimer = null;
-                if (!socket.connected) showBackendUnavailable(reason);
-            }, 1500);
-        }
-        function showBackendUnavailable(reason) {
-            if (window.location.pathname === '/login') return;
-            backendUnavailable = true;
-            const overlay = document.getElementById('connection-overlay');
-            overlay?.classList.remove('hidden');
-            overlay?.classList.add('flex');
-            document.getElementById('connection-title').textContent = 'TourniRC backend disconnected';
-            document.getElementById('connection-detail').textContent = reason || 'The local backend cannot be reached. If its terminal was closed, restart TourniRC.';
-            document.getElementById('connection-message-warning')?.classList.add('hidden');
-            document.getElementById('backend-message-warning')?.classList.remove('hidden');
-            const retry = document.getElementById('connection-retry');
-            if (retry) retry.textContent = 'Retry now';
-            document.getElementById('connection-logout')?.classList.add('hidden');
-        }
-        function updateConnectionState(data) {
-            lastConnectionState = data;
-            const overlay = document.getElementById('connection-overlay');
-            if (!overlay || window.location.pathname === '/login') return;
-            if (backendUnavailable) return;
+        return alert_element;
+    }
 
-            const title = document.getElementById('connection-title');
-            const detail = document.getElementById('connection-detail');
-            if (!backendRestarted) document.getElementById('backend-message-warning')?.classList.add('hidden');
-            document.getElementById('connection-logout')?.classList.remove('hidden');
-            if (data.state === 'authenticated') {
-                backendRestarted = false;
-                overlay.classList.add('hidden');
-                overlay.classList.remove('flex');
-                return;
-            }
-            if (data.state === 'logged_out') {
-                if (backendRestarted && backendHasCredentials) {
-                    title.textContent = 'TourniRC backend restarted';
-                    detail.textContent = 'The local backend is running again. Waiting for the IRC session to reconnect…';
+    function dismissNotification(element, key) {
+        clearTimeout(element.dismissTimer);
+        clearInterval(element.progressTimer);
+        element.classList.remove('opacity-100');
+        element.classList.add('opacity-0');
+        if (key) keyedToasts.delete(key);
+        setTimeout(() => element.remove(), 500);
+    }
+
+    function debug_func(data) {
+        socket.emit('debug', {
+            'data': data
+        });
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+        // Set theme from cookie
+        const themeCookie = document.cookie.split('; ').find(row => row.startsWith('theme='));
+        if (themeCookie) {
+            const theme = themeCookie.split('=')[1];
+            document.documentElement.setAttribute('data-theme', theme);
+        }
+
+        // Event listener for theme change
+        const themeItems = document.querySelectorAll('.theme-item');
+        themeItems.forEach(item => {
+            item.addEventListener('click', (e) => {
+                e.preventDefault();
+                const theme = e.target.closest('button').getAttribute('data-theme');
+                if (!theme) {
+                    console.error("Theme attribute not found on clicked element");
                     return;
                 }
-                window.location.assign('/login');
+                console.log('Theme:', theme);
+                document.documentElement.setAttribute('data-theme', theme);
+                document.cookie = `theme=${encodeURIComponent(theme)}; path=/; max-age=31536000; SameSite=Lax`;
+                socket.emit('theme', {
+                    'theme': theme
+                });
+            });
+        });
+
+    });
+    socket.on('notif', function(data) {
+        makeNotification(
+            data.content,
+            data.duration ? data.duration : 5000,
+            data.type ? data.type : ''
+        )
+    });
+    socket.on('blocked_pm', function(data) {
+        const content = data.count === 1 ?
+            `Blocked a private message from ${data.sender}.` :
+            `Blocked ${data.count} private messages from ${data.sender}.`;
+        makeNotification(content, 5000, 'error', {
+            key: `blocked:${data.key}`
+        });
+    });
+    socket.on('play_sounds', function(data) {
+        // browsers may reject autoplay. their problem, quietly.
+        (data.sounds || []).forEach(sound => {
+            const audio = new Audio(sound.url);
+            audio.volume = Math.max(0, Math.min(Number(sound.volume) || 0, 1));
+            audio.play().catch(error => console.warn('Sound playback failed:', error));
+        });
+    });
+    socket.on('tournament_state', function(data) {
+        document.querySelectorAll('.tournaments-nav').forEach(link => link.classList.toggle('tournaments-nav-active', Boolean(data.enabled)));
+    });
+    let backendUnavailable = false;
+    let backendInstanceId = null;
+    let backendRestarted = false;
+    let backendHasCredentials = false;
+    let lastConnectionState = null;
+    let backendWarningTimer = null;
+
+    function clearBackendWarningTimer() {
+        if (!backendWarningTimer) return;
+        clearTimeout(backendWarningTimer);
+        backendWarningTimer = null;
+    }
+
+    function scheduleBackendUnavailable(reason) {
+        // page navigation looks disconnected for a moment, because of course it does
+        if (window.location.pathname === '/login' || backendWarningTimer) return;
+        backendWarningTimer = setTimeout(() => {
+            backendWarningTimer = null;
+            if (!socket.connected) showBackendUnavailable(reason);
+        }, 1500);
+    }
+
+    function showBackendUnavailable(reason) {
+        // socket.io reconnects on its own
+        if (window.location.pathname === '/login') return;
+        backendUnavailable = true;
+        const overlay = document.getElementById('connection-overlay');
+        overlay?.classList.remove('hidden');
+        overlay?.classList.add('flex');
+        document.getElementById('connection-title').textContent = 'TourniRC backend disconnected';
+        document.getElementById('connection-detail').textContent = reason || 'The local backend cannot be reached. If its terminal was closed, restart TourniRC.';
+        document.getElementById('connection-message-warning')?.classList.add('hidden');
+        document.getElementById('backend-message-warning')?.classList.remove('hidden');
+        const retry = document.getElementById('connection-retry');
+        if (retry) retry.textContent = 'Retry now';
+        document.getElementById('connection-logout')?.classList.add('hidden');
+    }
+
+    function updateConnectionState(data) {
+        // backend and bancho failures share the screen, but not their state
+        lastConnectionState = data;
+        const overlay = document.getElementById('connection-overlay');
+        if (!overlay || window.location.pathname === '/login') return;
+        if (backendUnavailable) return;
+
+        const title = document.getElementById('connection-title');
+        const detail = document.getElementById('connection-detail');
+        if (!backendRestarted) document.getElementById('backend-message-warning')?.classList.add('hidden');
+        document.getElementById('connection-logout')?.classList.remove('hidden');
+        if (data.state === 'authenticated') {
+            backendRestarted = false;
+            overlay.classList.add('hidden');
+            overlay.classList.remove('flex');
+            return;
+        }
+        if (data.state === 'logged_out') {
+            if (backendRestarted && backendHasCredentials) {
+                title.textContent = 'TourniRC backend restarted';
+                detail.textContent = 'The local backend is running again. Waiting for the IRC session to reconnect…';
                 return;
             }
+            window.location.assign('/login');
+            return;
+        }
 
-            overlay.classList.remove('hidden');
-            overlay.classList.add('flex');
-            const messageWarning = document.getElementById('connection-message-warning');
-            messageWarning?.classList.toggle('hidden', data.state !== 'reconnecting');
-            if (data.state === 'authentication_failed') {
-                title.textContent = 'Authentication failed';
-                detail.textContent = data.reason || 'Check your osu! IRC credentials and log in again.';
-            } else if (data.state === 'reconnecting') {
-                title.textContent = 'Reconnecting to Bancho';
-                const retry = data.retry_in ? ` Retrying in ${data.retry_in} seconds.` : '';
-                detail.textContent = (data.reason || 'The IRC connection was lost.') + retry;
-            } else {
-                title.textContent = 'Connecting to Bancho';
-                detail.textContent = 'Establishing the IRC connection…';
-            }
-        }
-        socket.on('connection_state', updateConnectionState);
-        socket.on('disconnect', () => scheduleBackendUnavailable());
-        socket.on('connect_error', () => scheduleBackendUnavailable('The local backend cannot be reached. TourniRC will keep trying to reconnect.'));
-        socket.on('backend_identity', (data) => {
-            if (!data || typeof data.instance_id !== 'string') return;
-            const reset = backendInstanceId !== null && backendInstanceId !== data.instance_id;
-            backendInstanceId = data.instance_id;
-            backendRestarted = reset;
-            backendHasCredentials = Boolean(data.has_credentials);
-            backendUnavailable = false;
-            clearBackendWarningTimer();
-            if (reset) {
-                makeNotification('The TourniRC backend restarted. Open tabs and in-memory chat history were reset.', 10000, 'warning');
-            }
-            window.dispatchEvent(new CustomEvent('backend_ready', {detail: {reset: reset}}));
-            if (lastConnectionState) updateConnectionState(lastConnectionState);
-        });
-        socket.on('connect', () => {
-            clearBackendWarningTimer();
-            socket.emit('backend_identity_request');
-        });
-        if (socket.connected) {
-            socket.emit('backend_identity_request');
+        overlay.classList.remove('hidden');
+        overlay.classList.add('flex');
+        const messageWarning = document.getElementById('connection-message-warning');
+        messageWarning?.classList.toggle('hidden', data.state !== 'reconnecting');
+        if (data.state === 'authentication_failed') {
+            title.textContent = 'Authentication failed';
+            detail.textContent = data.reason || 'Check your osu! IRC credentials and log in again.';
+        } else if (data.state === 'reconnecting') {
+            title.textContent = 'Reconnecting to Bancho';
+            const retry = data.retry_in ? ` Retrying in ${data.retry_in} seconds.` : '';
+            detail.textContent = (data.reason || 'The IRC connection was lost.') + retry;
         } else {
-            scheduleBackendUnavailable();
+            title.textContent = 'Connecting to Bancho';
+            detail.textContent = 'Establishing the IRC connection…';
         }
-        document.getElementById('connection-retry')?.addEventListener('click', () => {
-            if (backendUnavailable) {
-                socket.connect();
-            } else {
-                socket.emit('irc_retry');
+    }
+    socket.on('connection_state', updateConnectionState);
+    socket.on('disconnect', () => scheduleBackendUnavailable());
+    socket.on('connect_error', () => scheduleBackendUnavailable('The local backend cannot be reached. TourniRC will keep trying to reconnect.'));
+    socket.on('backend_identity', (data) => {
+        // a new process has no chat state worth pretending to restore
+        if (!data || typeof data.instance_id !== 'string') return;
+        const reset = backendInstanceId !== null && backendInstanceId !== data.instance_id;
+        backendInstanceId = data.instance_id;
+        backendRestarted = reset;
+        backendHasCredentials = Boolean(data.has_credentials);
+        backendUnavailable = false;
+        clearBackendWarningTimer();
+        if (reset) {
+            makeNotification('The TourniRC backend restarted. Open tabs and in-memory chat history were reset.', 10000, 'warning');
+        }
+        window.dispatchEvent(new CustomEvent('backend_ready', {
+            detail: {
+                reset: reset
             }
-        });
-        document.getElementById('connection-logout')?.addEventListener('click', () => socket.emit('logout'));
-        socket.on('logout_complete', () => window.location.assign('/login'));
-    </script>
+        }));
+        if (lastConnectionState) updateConnectionState(lastConnectionState);
+    });
+    socket.on('connect', () => {
+        clearBackendWarningTimer();
+        socket.emit('backend_identity_request');
+    });
+    if (socket.connected) {
+        socket.emit('backend_identity_request');
+    } else {
+        scheduleBackendUnavailable();
+    }
+    document.getElementById('connection-retry')?.addEventListener('click', () => {
+        if (backendUnavailable) {
+            socket.connect();
+        } else {
+            socket.emit('irc_retry');
+        }
+    });
+    document.getElementById('connection-logout')?.addEventListener('click', () => socket.emit('logout'));
+    socket.on('logout_complete', () => window.location.assign('/login'));
+</script>
 </body>
 </html>

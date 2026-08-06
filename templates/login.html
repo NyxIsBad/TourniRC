@@ -56,8 +56,12 @@
             return;
         }
         document.getElementById('login-button').disabled = true;
-        socket.emit('login_submit', {username: username.value.trim(), password: password.value.trim()});
+        socket.emit('login_submit', {
+            username: username.value.trim(),
+            password: password.value.trim()
+        });
     });
+    // from server
     socket.on('login_result', (data) => {
         if (data.ok) {
             document.getElementById('login-password').value = '';
