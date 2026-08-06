@@ -86,6 +86,10 @@
                 <input type="checkbox" name="accordion" checked="checked" />
                 <div class="collapse-title text-lg font-medium">Channel Info</div>
                 <div class="collapse-content space-y-1">
+                    <div id="tournament-assignment" class="hidden grid grid-cols-2 gap-2 mb-2">
+                        <select id="tournament-select" class="select select-bordered select-sm"><option value="">Tournament: None</option></select>
+                        <select id="mappool-select" class="select select-bordered select-sm"><option value="">Mappool: None</option></select>
+                    </div>
                     <!-- row 1 -->
                     <div id="channel-info-name-row" class="flex flex-row items-start w-[30vw]">
                         <a id="channel-info-link" target="_blank" rel="noopener noreferrer" class="link text-accent w-full overflow-hidden text-ellipsis whitespace-nowrap"></a>
@@ -122,6 +126,11 @@
                         <p id="match-mods">Unknown</p>
                     </div>
                 </div>
+            </div>
+            <div id="mappool-panel" class="hidden collapse collapse-arrow join-item border rounded border-base-content mb-1">
+                <input type="checkbox" name="accordion" />
+                <div class="collapse-title text-lg font-medium">Mappool</div>
+                <div class="collapse-content"><p id="mappool-prompt">Select a mappool.</p><div id="mappool-maps" class="flex flex-col gap-2"></div><div id="score-summary" class="hidden mt-3 border-t border-base-content pt-2"></div></div>
             </div>
             <div id="match-commands" class="hidden collapse collapse-arrow join-item border rounded border-base-content mb-1">
                 <input type="checkbox" name="accordion" />
@@ -258,6 +267,11 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js" integrity="sha512-q/dWJ3kcmjBLU4Qc47E4A9kTB4m3wuTY7vkFJDTZKjTs8jhyGQnaUrxa0Ytd0ssMZhbNua9hE+E7Qv1j+DyZwA==" crossorigin="anonymous"></script>
 <script src="{{ url_for('static', filename='js/hotkeys.js') }}"></script>
 <script type="text/javascript" charset="utf-8">
+    let tournament_state = {
+        enabled: false,
+        tournaments: []
+    };
+    let tournament_overlay = null;
     // Variables set and used by the page
     let useUTC = true; // default to UTC
     let keepScroll = true; // default to keeping scroll
@@ -279,6 +293,7 @@
         seconds = seconds.toString().padStart(2, '0');
         return `${hours}:${minutes}:${seconds}`;
     }
+
     function formatTimeFile(date) {
         var year, month, day;
         if (useUTC) {
@@ -292,6 +307,7 @@
         }
         return `${year}-${month}-${day}_${formatTime(date)}`;
     }
+
     function updateTimes() {
         timestamps = document.querySelectorAll('.time')
         timestamps.forEach((element) => {
@@ -301,14 +317,18 @@
             element.textContent = formatted_time;
         });
     }
+
     function getPlayerTeam(username, teams) {
+        // irc usernames are not case sensitive
         const lower_username = String(username).toLowerCase();
         for (const [player, team] of Object.entries(teams || {})) {
             if (player.toLowerCase() === lower_username) return team;
         }
         return 0;
     }
+
     function appendHighlightedText(container, text, teams) {
+        // longest first keeps short names from eating longer ones
         const players = Object.keys(teams || {})
             .filter(player => teams[player] === 1 || teams[player] === 2)
             .sort((first, second) => second.length - first.length);
@@ -333,6 +353,7 @@
         }
         container.appendChild(document.createTextNode(text.slice(position)));
     }
+
     function appendMessageContent(container, text, teams = {}) {
         // add links without trusting message html
         // match urls and [url text] patterns
@@ -354,22 +375,29 @@
         }
         appendHighlightedText(container, text.slice(position), teams);
     }
+
     function emitAndResponse(tag, channel) {
         return new Promise((resolve, reject) => {
-            socket.emit(tag, { channel: channel }, function(data) {
+            socket.emit(tag, {
+                channel: channel
+            }, function(data) {
                 resolve(data);
             });
         });
     }
+
     function scrollToBottom() {
         const msg_container = document.getElementById('message-container');
         msg_container.scrollTop = msg_container.scrollHeight;
     }
+
     function clearMessages() {
         const messages = document.getElementById('messages');
         messages.innerHTML = '';
     }
+
     function resetChatSession() {
+        // the backend died, so its old state died with it
         document.getElementById('tabs').replaceChildren();
         document.getElementById('recent-rooms').replaceChildren();
         clearMessages();
@@ -378,11 +406,13 @@
         if (alias_dialog.open) alias_dialog.close();
         document.title = 'TourniRC';
     }
+
     function makeMessage(time, user, content, state = {}) {
         const message_element = document.createElement('div');
         const time_obj = new Date(time)
         const time_str = formatTime(time_obj);
         message_element.classList.add('flex', 'flex-wrap', 'items-start', 'overflow-x-hidden');
+        // use the team sent with the message; old colors should stay old
         const team = state.author_team || 0;
         if (team === 1) {
             team_class = 'text-red-500';
@@ -419,6 +449,7 @@
         }
         return message_element;
     }
+
     function setMessages(message_list) {
         const messages = document.getElementById('messages');
         clearMessages();
@@ -430,6 +461,7 @@
             messages.appendChild(message_element);
         });
     }
+
     function setRooms(room_list, limit) {
         const recent_rooms = document.getElementById('recent-rooms');
         recent_rooms.replaceChildren();
@@ -469,6 +501,7 @@
     }
     let active_timer_end = null;
     let active_timer_type = null;
+
     function updateMatchTimer() {
         const timer = document.getElementById('match-active-timer');
         if (!active_timer_end) {
@@ -483,9 +516,11 @@
             active_timer_type = null;
         }
     }
+
     function setPlayers(players) {
         const player_list = document.getElementById('players-list');
         player_list.replaceChildren();
+        // slot order is more useful than join order
         const sorted_players = Object.entries(players || {}).sort(([first_name, first], [second_name, second]) => {
             const first_slot = Number.isInteger(first.slot) ? first.slot : 99;
             const second_slot = Number.isInteger(second.slot) ? second.slot : 99;
@@ -524,6 +559,7 @@
             player_list.appendChild(row);
         });
     }
+
     function setChannelInfo(info, players) {
         const is_match = info && info.kind === 'match';
         const link = document.getElementById('channel-info-link');
@@ -565,16 +601,129 @@
         active_timer_type = info && info.active_timer;
         updateMatchTimer();
         setPlayers(players);
+        renderTournamentOverlay(is_match);
     }
+
+    function renderTournamentOverlay(is_match) {
+        // tournaments are a layer; regular rooms should know nothing about them
+        const enabled = Boolean(is_match && tournament_state.enabled);
+        if (enabled && tournament_overlay?.assignment?.tournament_id) {
+            tournament_overlay.tournament = tournament_state.tournaments.find(item => item.id === tournament_overlay.assignment.tournament_id) || null;
+        }
+        document.getElementById('tournament-assignment').classList.toggle('hidden', !enabled);
+        const tournament_select = document.getElementById('tournament-select');
+        tournament_select.replaceChildren(new Option('Tournament: None', ''));
+        tournament_state.tournaments.filter(item => item.valid).forEach(item => tournament_select.add(new Option(item.name, item.id)));
+        tournament_select.value = tournament_overlay?.assignment?.tournament_id || '';
+        const tournament = tournament_overlay?.tournament;
+        const pool_select = document.getElementById('mappool-select');
+        pool_select.replaceChildren(new Option('Mappool: None', ''));
+        if (tournament) tournament.mappool_order.forEach(id => pool_select.add(new Option(tournament.mappools[id].name, id)));
+        pool_select.disabled = !tournament;
+        pool_select.value = tournament_overlay?.assignment?.pool_id || '';
+        document.getElementById('mappool-panel').classList.toggle('hidden', !enabled || !tournament);
+        const maps = document.getElementById('mappool-maps');
+        maps.replaceChildren();
+        const pool = tournament?.mappools?.[pool_select.value];
+        document.getElementById('mappool-prompt').classList.toggle('hidden', Boolean(pool));
+        if (pool) pool.map_order.forEach(id => {
+            const beatmap = pool.maps[id];
+            const button = document.createElement('button');
+            button.className = 'btn btn-outline justify-start h-auto py-2';
+            button.textContent = [beatmap.designator, beatmap.name, (beatmap.mods || []).join(' ')].filter(Boolean).join(' · ');
+            button.addEventListener('click', () => {
+                button.disabled = true;
+                socket.emit('tournament_pick_map', {
+                    channel: currentChannel(),
+                    map_id: id
+                }, result => {
+                    if (!result.ok) makeNotification(result.errors.join('\n'), 5000, 'error');
+                    setTimeout(() => button.disabled = false, 1000);
+                });
+            });
+            maps.appendChild(button);
+        });
+        const score = document.getElementById('score-summary');
+        score.replaceChildren();
+        // score results are still editable because bancho can miss player mods
+        if (tournament_overlay?.score) {
+            score.classList.remove('hidden');
+            const warning = document.createElement('div');
+            warning.className = 'alert alert-warning text-sm mb-2';
+            warning.textContent = 'Score calculation uses each player\'s listed mods. Check the Players panel and correct the selections below before relying on these totals, especially during Freemod.';
+            score.appendChild(warning);
+            const totals = document.createElement('p');
+            totals.className = 'font-semibold';
+            totals.textContent = `Calculated score · Red ${tournament_overlay.score.totals.red} · Blue ${tournament_overlay.score.totals.blue}`;
+            score.appendChild(totals);
+            tournament_overlay.score.players.forEach(player => {
+                const row = document.createElement('details');
+                row.className = 'rounded border border-base-content p-2 mt-2';
+                const summary = document.createElement('summary');
+                summary.className = 'cursor-pointer';
+                summary.textContent = `${player.username}: ${player.score} × ${player.multiplier} = ${player.adjusted} (${player.applied_mods.join('')})`;
+                row.appendChild(summary);
+                const choices = document.createElement('div');
+                choices.className = 'grid grid-cols-2 xl:grid-cols-3 gap-1 mt-2';
+                Object.entries(tournament_state.mods || {}).forEach(([mod, name]) => {
+                    const label = document.createElement('label');
+                    label.className = 'label cursor-pointer justify-start gap-1';
+                    const box = document.createElement('input');
+                    box.type = 'checkbox';
+                    box.className = 'checkbox checkbox-xs';
+                    box.value = mod;
+                    box.checked = player.applied_mods.includes(mod);
+                    box.onchange = () => {
+                        if (mod === 'NM' && box.checked) choices.querySelectorAll('input').forEach(item => {
+                            if (item.value !== 'NM') item.checked = false;
+                        });
+                        else if (box.checked) choices.querySelector('input[value="NM"]').checked = false;
+                        const mods = Array.from(choices.querySelectorAll('input:checked')).map(item => item.value);
+                        socket.emit('tournament_score_mods', {
+                            channel: currentChannel(),
+                            username: player.username,
+                            mods
+                        }, result => {
+                            if (!result.ok) return makeNotification(result.errors.join('\n'), 5000, 'error');
+                            tournament_overlay = result.data;
+                            renderTournamentOverlay(true);
+                        });
+                    };
+                    label.append(box, document.createTextNode(`${name} (${mod})`));
+                    choices.appendChild(label);
+                });
+                row.appendChild(choices);
+                score.appendChild(row);
+            });
+        } else score.classList.add('hidden');
+        // each tab can belong to a different tournament
+        getTabs().forEach(tab => {
+            const item = tournament_state.tournaments.find(candidate => candidate.id === tab.dataset.tournamentId);
+            const color = tournament_state.enabled && item ? item.color : '';
+            tab.style.color = '';
+            tab.style.textShadow = '';
+            tab.style.textDecorationLine = color ? 'underline' : '';
+            tab.style.textDecorationColor = color;
+            tab.style.textDecorationThickness = color ? '.2rem' : '';
+            tab.style.textUnderlineOffset = color ? '.25rem' : '';
+        });
+    }
+
     function findTab(channel) {
         // channel names should not go inside selectors
         return Array.from(document.querySelectorAll('input[name="tab"]')).find(
             tab => tab.dataset.channel.toLowerCase() === channel.toLowerCase()
         );
     }
+
     function getTabs() {
         return Array.from(document.querySelectorAll('input[name="tab"]'));
     }
+
+    function currentChannel() {
+        return document.querySelector('input[name="tab"]:checked')?.dataset.channel || null;
+    }
+
     function sendTabOrder() {
         socket.emit('tab_reorder', {
             channels: getTabs().map(tab => tab.dataset.channel)
@@ -587,7 +736,7 @@
         const message_form = document.getElementById('message-form');
         const message_input = document.getElementById('message-input');
         // Commands
-        const match_timer = document.getElementById('match-timer-btn');
+        const timer_button = document.getElementById('match-timer-btn');
         const match_input = document.getElementById('timer-input');
         const start_timer = document.getElementById('start-timer-btn');
         const start_input = document.getElementById('start-input');
@@ -625,9 +774,22 @@
             }
         });
         socket.on('match_state', function(data) {
+            // only redraw the room the user is actually looking at
             const selected_tab = document.querySelector('input[name="tab"]:checked');
             if (!selected_tab || selected_tab.dataset.channel.toLowerCase() !== data.channel.toLowerCase()) return;
+            if (data.tournament) tournament_overlay = data.tournament;
             setChannelInfo(data.info, data.players);
+        });
+        socket.on('tournament_state', function(data) {
+            tournament_state = data;
+            renderTournamentOverlay(!document.getElementById('match-commands').classList.contains('hidden'));
+        });
+        socket.on('tournament_overlay', function(data) {
+            const tab = findTab(data.channel);
+            if (tab) tab.dataset.tournamentId = data.assignment?.tournament_id || '';
+            if (!currentChannel() || data.channel.toLowerCase() !== currentChannel().toLowerCase()) return;
+            tournament_overlay = data;
+            renderTournamentOverlay(true);
         });
         socket.on('bounce_tab_open', function(data) {
             const tab_container = document.getElementById('tabs');
@@ -686,6 +848,7 @@
             setRooms(data.rooms, data.max_rooms);
         });
         socket.on('restore_tab', function(data) {
+            // restoring a tab also has to restore which room is selected
             const tab = findTab(data.channel);
             if (tab) tab.click();
         });
@@ -702,7 +865,7 @@
         socket.on('set_timer_input', function(data) {
             match_input.value = data.timer;
         });
-        socket.on('set_match_timer_input', function(data) {
+        socket.on('set_start_timer_input', function(data) {
             start_input.value = data.timer;
         });
         socket.on('cmd_savelog_response', function(data) {
@@ -715,12 +878,14 @@
             log += `---- Log contains ${message_list.length} messages ----\n`;
             log += `---- Begin Log ----\n`;
             message_list.forEach(message => {
-                let [time, username, content] = message 
+                let [time, username, content] = message
                 let line = `${formatTime(new Date(time))} ${username}: ${content}`;
                 log += line + '\n';
             })
             log += '---- End Log ----';
-            const blob = new Blob([log], { type: 'text/plain' });
+            const blob = new Blob([log], {
+                type: 'text/plain'
+            });
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
             // empty logs use the current time
@@ -746,9 +911,14 @@
 
             message_input.value = '';
             if (!selected_tab) {
-                socket.emit('send_msg', { content: message });
+                socket.emit('send_msg', {
+                    content: message
+                });
             } else {
-                socket.emit('send_msg', { content: message, channel: selected_tab.dataset.channel });
+                socket.emit('send_msg', {
+                    content: message,
+                    channel: selected_tab.dataset.channel
+                });
             }
         });
         match_input.addEventListener('input', (e) => {
@@ -756,7 +926,9 @@
                 match_input.value = 0;
             }
             if (match_input.value > 0) {
-                socket.emit('set_timer', { timer: match_input.value });
+                socket.emit('set_timer', {
+                    timer: match_input.value
+                });
             }
         });
         start_input.addEventListener('input', (e) => {
@@ -764,7 +936,9 @@
                 start_input.value = 0;
             }
             if (start_input.value > 0) {
-                socket.emit('set_match_timer', { timer: start_input.value });
+                socket.emit('set_start_timer', {
+                    timer: start_input.value
+                });
             }
         });
         // Delegation of tab handling
@@ -783,13 +957,16 @@
                         // set timer
                         match_input.value = data.timer;
                     }
-                    if (data.match_timer) {
+                    if (data.start_timer) {
                         // set start timer
-                        start_input.value = data.match_timer;
+                        start_input.value = data.start_timer;
                     }
                     if (data.channel_info) {
                         setChannelInfo(data.channel_info, data.players || {});
                     }
+                    tournament_overlay = data.tournament || null;
+                    selected.dataset.tournamentId = tournament_overlay?.assignment?.tournament_id || '';
+                    renderTournamentOverlay(data.channel_info?.kind === 'match');
                     if (keepScroll) {
                         scrollToBottom();
                     }
@@ -811,7 +988,9 @@
                 const tab_parent = document.getElementById('tabs');
 
                 if (sibling_tab && sibling_tab.getAttribute('role') === 'tab') {
-                    socket.emit('tab_close', { channel: tab_name });
+                    socket.emit('tab_close', {
+                        channel: tab_name
+                    });
                     // Clear the tab
                     tab_container.remove();
                     if (selected_channel === tab_name) {
@@ -879,31 +1058,65 @@
             const row = e.target.closest('[data-channel]');
             if (!row) return;
             if (e.target.dataset.action === 'open') {
-                socket.emit('recent_room_open', { channel: row.dataset.channel });
+                socket.emit('recent_room_open', {
+                    channel: row.dataset.channel
+                });
             } else if (e.target.dataset.action === 'remove') {
-                socket.emit('recent_room_remove', { channel: row.dataset.channel });
+                socket.emit('recent_room_remove', {
+                    channel: row.dataset.channel
+                });
             }
         });
         recent_rooms_clear.addEventListener('click', () => {
             socket.emit('recent_rooms_clear');
         });
         setupChannelHotkeys(getTabs, () => document.querySelector('input[name="tab"]:checked')?.dataset.channel || null);
+        document.getElementById('tournament-select').addEventListener('change', event => {
+            socket.emit('tournament_assign', {
+                channel: currentChannel(),
+                tournament_id: event.target.value
+            }, result => {
+                if (!result.ok) return makeNotification(result.errors.join('\n'), 5000, 'error');
+                tournament_overlay = result.data;
+                renderTournamentOverlay(true);
+            });
+        });
+        document.getElementById('mappool-select').addEventListener('change', event => {
+            socket.emit('tournament_select_pool', {
+                channel: currentChannel(),
+                pool_id: event.target.value
+            }, result => {
+                if (!result.ok) return makeNotification(result.errors.join('\n'), 5000, 'error');
+                tournament_overlay = result.data;
+                renderTournamentOverlay(true);
+            });
+        });
         setInterval(updateMatchTimer, 250);
         // Button handling
-        match_timer.addEventListener('click', (e) => {
-            socket.emit('send_msg', { content: '!mp timer '+match_input.value });
+        timer_button.addEventListener('click', (e) => {
+            socket.emit('send_msg', {
+                content: '!mp timer ' + match_input.value
+            });
         });
         start_timer.addEventListener('click', (e) => {
-            socket.emit('send_msg', { content: '!mp start '+start_input.value });
+            socket.emit('send_msg', {
+                content: '!mp start ' + start_input.value
+            });
         });
         match_settings.addEventListener('click', (e) => {
-            socket.emit('send_msg', { content: '!mp settings' });
+            socket.emit('send_msg', {
+                content: '!mp settings'
+            });
         });
         cancel_timer.addEventListener('click', (e) => {
-            socket.emit('send_msg', { content: '!mp aborttimer' });
+            socket.emit('send_msg', {
+                content: '!mp aborttimer'
+            });
         });
         abort.addEventListener('click', (e) => {
-            socket.emit('send_msg', { content: '!mp abort' });
+            socket.emit('send_msg', {
+                content: '!mp abort'
+            });
         });
         timezone.addEventListener('click', (e) => {
             useUTC = !useUTC;
@@ -913,7 +1126,7 @@
             timezone.title = useUTC ? 'Use Local Time' : 'Use UTC Time';
             updateTimes(useUTC);
         });
-        time_toggle.addEventListener('click',(e) => {
+        time_toggle.addEventListener('click', (e) => {
             const icons = time_toggle.querySelectorAll('svg');
             icons.forEach((icon) => {
                 icon.classList.toggle('hidden');
@@ -930,7 +1143,9 @@
             e.preventDefault();
             const channel = query_input.value.trim();
             if (!channel) return;
-            socket.emit('send_msg', { content: '/query '+channel });
+            socket.emit('send_msg', {
+                content: '/query ' + channel
+            });
             query_input.value = '';
             document.getElementById('query_btn').close();
         });
@@ -944,7 +1159,9 @@
             }
         });
         savelog.addEventListener('click', (e) => {
-            socket.emit('send_msg', { content: '/savelog' });
+            socket.emit('send_msg', {
+                content: '/savelog'
+            });
         });
     });
     window.addEventListener('backend_ready', (event) => {
