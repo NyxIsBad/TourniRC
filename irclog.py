@@ -1,7 +1,9 @@
-import logging 
+import logging
+import os
 
 def create_logger(fname: str, level: int = logging.DEBUG) -> logging.Logger:
     # the readable log starts fresh on every run
+    os.makedirs(os.path.dirname(fname) or '.', exist_ok=True)
     with open(fname, 'w'):
         pass
     Log = logging.getLogger("osu_irc")

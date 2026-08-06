@@ -1,10 +1,11 @@
 import asyncio
+import os
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from cfg import roomsConfig, uiConfig, userConfig
+from cfg import roomsConfig, userConfig
 from osu_irc.Classes.client import Client
 from osu_irc.Classes.user import User
 from osu_irc.Utils.detector import mainEventDetector
@@ -13,6 +14,13 @@ from irclib import Client as TourniRCClient
 from eventlog import _sanitize
 from settings import SettingsRepository
 from sounds import SoundStore
+from tournaments import TournamentAssignments, TournamentRepository
+from tests.test_tournaments import valid_tournament
+
+
+# importing ui should never use the real user config
+IMPORT_CONFIG = tempfile.TemporaryDirectory()
+os.environ['TOURNIRC_CONFIG_DIR'] = IMPORT_CONFIG.name
 
 
 class FakeReader:
@@ -180,6 +188,14 @@ class UserConfigTests(unittest.TestCase):
             loaded.clear_credentials()
             self.assertFalse(userConfig(str(path)).has_credentials())
 
+    def test_config_classes_create_their_parent_directory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'cfg'
+            userConfig(str(root / 'login.ini'))
+            roomsConfig(str(root / 'recentrooms.ini'))
+            self.assertTrue((root / 'login.ini').exists())
+            self.assertTrue((root / 'recentrooms.ini').exists())
+
     def test_event_log_redacts_credentials_and_pass_commands(self):
         sanitized = _sanitize({
             'username': 'Referee',
@@ -205,7 +221,7 @@ class UserConfigTests(unittest.TestCase):
             self.assertEqual(['#mp_three'], config.rooms)
             self.assertEqual(['#mp_three'], roomsConfig(str(path), max_rooms=2).rooms)
 
-    def test_recent_room_limit_is_clamped_and_persisted(self):
+    def test_recent_room_limit_is_runtime_owned_and_clamped(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'recentrooms.ini'
             config = roomsConfig(str(path))
@@ -213,19 +229,11 @@ class UserConfigTests(unittest.TestCase):
             config.add_room('#one')
             config.add_room('#two')
             config.add_room('#three')
-            loaded = roomsConfig(str(path))
+            loaded = roomsConfig(str(path), max_rooms=2)
             self.assertEqual(2, loaded.max_rooms)
             self.assertEqual(['#two', '#three'], loaded.rooms)
             loaded.set_max_rooms(999)
             self.assertEqual(50, loaded.max_rooms)
-
-    def test_theme_is_written_immediately(self):
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / 'ui.ini'
-            config = uiConfig(str(path))
-            config.set_theme('cupcake')
-            self.assertEqual('cupcake', config.theme)
-            self.assertEqual('cupcake', uiConfig(str(path)).get_theme())
 
     def test_chat_template_uses_dom_nodes_for_untrusted_message_data(self):
         template = (Path(__file__).parents[1] / 'templates' / 'chat.html').read_text(encoding='utf-8')
@@ -241,7 +249,9 @@ class UserConfigTests(unittest.TestCase):
         self.assertIn("tab_input.dataset.channel = data.channel", template)
         self.assertIn("window.addEventListener('backend_ready'", template)
         self.assertIn('resetChatSession()', template)
-        self.assertIn("socket.emit(tag, { channel: channel }, function(data)", template)
+        self.assertIn("socket.emit(tag, {", template)
+        self.assertIn("channel: channel", template)
+        self.assertIn("}, function(data)", template)
         self.assertIn("selected.dataset.channel.toLowerCase() !== data.channel.toLowerCase()", template)
         self.assertIn("open.textContent = 'Open'", template)
         self.assertIn('https://osu.ppy.sh/mp/${encodeURIComponent(match_id)}', template)
@@ -264,16 +274,17 @@ class UiSessionTests(unittest.TestCase):
         self.original_rooms_cfg = ui.rms_cfg
         self.original_settings_cfg = ui.settings_cfg
         self.original_sound_store = ui.sound_store
+        self.original_tournament_cfg = ui.tournament_cfg
+        self.original_tournament_assignments = ui.tournament_assignments
         self.temp_dir = tempfile.TemporaryDirectory()
         ui.user_cfg = userConfig(str(Path(self.temp_dir.name) / 'login.ini'))
         ui.rms_cfg = roomsConfig(str(Path(self.temp_dir.name) / 'recentrooms.ini'))
-        ui.settings_cfg = SettingsRepository(
-            str(Path(self.temp_dir.name) / 'settings.json'),
-            str(Path(self.temp_dir.name) / 'ui.ini'),
-            str(Path(self.temp_dir.name) / 'recentrooms.ini')
-        )
+        ui.settings_cfg = SettingsRepository(str(Path(self.temp_dir.name) / 'settings.json'))
         ui.sound_store = SoundStore(str(Path(self.temp_dir.name) / 'sounds'))
+        ui.tournament_cfg = TournamentRepository(Path(self.temp_dir.name) / 'tournaments')
+        ui.tournament_assignments = TournamentAssignments()
         ui.blocked_pm_notices.clear()
+        ui.map_pick_locks.clear()
         ui.chats.clear()
         ui.pending_credentials = None
         ui.connection_state.clear()
@@ -286,6 +297,8 @@ class UiSessionTests(unittest.TestCase):
         self.ui.rms_cfg = self.original_rooms_cfg
         self.ui.settings_cfg = self.original_settings_cfg
         self.ui.sound_store = self.original_sound_store
+        self.ui.tournament_cfg = self.original_tournament_cfg
+        self.ui.tournament_assignments = self.original_tournament_assignments
         self.temp_dir.cleanup()
 
     def test_login_validates_and_persists_credentials(self):
@@ -299,6 +312,12 @@ class UiSessionTests(unittest.TestCase):
         self.assertFalse(self.ui.user_cfg.has_credentials())
         self.client.emit('irc_state', {'state': self.ui.IRC_STATE_AUTHENTICATED})
         self.assertTrue(self.ui.user_cfg.has_credentials())
+
+    def test_theme_is_written_immediately_to_settings_json(self):
+        self.client.emit('theme', {'theme': 'cupcake'})
+        self.assertEqual('cupcake', self.ui.settings_cfg.data['appearance']['theme'])
+        loaded = SettingsRepository(self.ui.settings_cfg.path)
+        self.assertEqual('cupcake', loaded.data['appearance']['theme'])
 
     def test_session_snapshot_preserves_room_types_and_selection(self):
         with patch.object(self.ui, 'emit'):
@@ -325,6 +344,16 @@ class UiSessionTests(unittest.TestCase):
         ]
         self.assertTrue(first[0])
         self.assertEqual(first[0], second[0])
+
+    def test_tournament_page_renders_without_an_irc_session(self):
+        response = self.ui.app.test_client().get('/tournaments')
+        self.assertEqual(200, response.status_code)
+        self.assertIn(b'Enable tournament features', response.data)
+
+    def test_tournament_create_socket_accepts_the_ui_payload(self):
+        result = self.client.emit('tournament_create', {}, callback=True)
+        self.assertTrue(result['ok'])
+        self.assertFalse(result['data']['tournament']['valid'])
 
     def test_send_is_rejected_while_disconnected(self):
         self.client.get_received()
@@ -441,6 +470,163 @@ class UiSessionTests(unittest.TestCase):
             channel.channel_info()['kind']
         ))
 
+    def test_tournament_assignment_is_match_only_and_applies_timer_defaults(self):
+        saved = self.ui.tournament_cfg.save(valid_tournament())
+        self.ui.tournament_cfg.set_enabled(True)
+        with patch.object(self.ui, 'emit'):
+            self.ui.chats.add_chat('#mp_123', 1)
+            self.ui.chats.add_chat('BanchoBot', 2)
+        rejected = self.client.emit('tournament_assign', {'channel': 'BanchoBot', 'tournament_id': saved['id']}, callback=True)
+        self.assertFalse(rejected['ok'])
+        assigned = self.client.emit('tournament_assign', {'channel': '#mp_123', 'tournament_id': saved['id']}, callback=True)
+        self.assertTrue(assigned['ok'])
+        self.assertEqual(120, self.ui.chats.get_chat('#mp_123').timer)
+        self.assertEqual(10, self.ui.chats.get_chat('#mp_123').start_timer)
+        self.assertIsNone(assigned['data']['assignment']['pool_id'])
+
+    def test_tournament_map_pick_sends_the_two_full_stored_commands(self):
+        saved = self.ui.tournament_cfg.save(valid_tournament())
+        self.ui.tournament_cfg.set_enabled(True)
+        self.ui.connection_state['state'] = self.ui.IRC_STATE_AUTHENTICATED
+        with patch.object(self.ui, 'emit'):
+            self.ui.chats.add_chat('#mp_123', 1)
+        self.ui.tournament_assignments.assign('#mp_123', saved['id'])
+        pool_id = saved['mappool_order'][0]
+        map_id = saved['mappools'][pool_id]['map_order'][0]
+        self.ui.tournament_assignments.select_pool('#mp_123', pool_id)
+        with patch.object(self.ui, 'handle_send_msg') as send:
+            result = self.client.emit('tournament_pick_map', {
+                'channel': '#mp_123', 'map_id': map_id
+            }, callback=True)
+        self.assertTrue(result['ok'])
+        self.assertEqual([
+            {'channel': '#mp_123', 'content': '!mp map 123'},
+            {'channel': '#mp_123', 'content': '!mp mods NF'}
+        ], [call.args[0] for call in send.call_args_list])
+
+    def test_tournament_map_pick_rejects_disconnected_client(self):
+        saved = self.ui.tournament_cfg.save(valid_tournament())
+        self.ui.tournament_cfg.set_enabled(True)
+        with patch.object(self.ui, 'emit'):
+            self.ui.chats.add_chat('#mp_123', 1)
+        self.ui.tournament_assignments.assign('#mp_123', saved['id'])
+        pool_id = saved['mappool_order'][0]
+        map_id = saved['mappools'][pool_id]['map_order'][0]
+        self.ui.tournament_assignments.select_pool('#mp_123', pool_id)
+        self.ui.connection_state['state'] = self.ui.IRC_STATE_LOGGED_OUT
+        with patch.object(self.ui, 'handle_send_msg') as send:
+            result = self.client.emit('tournament_pick_map', {
+                'channel': '#mp_123', 'map_id': map_id
+            }, callback=True)
+        self.assertFalse(result['ok'])
+        send.assert_not_called()
+
+    def test_tournament_map_pick_lock_rejects_a_second_click(self):
+        saved = self.ui.tournament_cfg.save(valid_tournament())
+        self.ui.tournament_cfg.set_enabled(True)
+        self.ui.connection_state['state'] = self.ui.IRC_STATE_AUTHENTICATED
+        with patch.object(self.ui, 'emit'):
+            self.ui.chats.add_chat('#mp_123', 1)
+        pool_id = saved['mappool_order'][0]
+        map_id = saved['mappools'][pool_id]['map_order'][0]
+        self.ui.tournament_assignments.assign('#mp_123', saved['id'])
+        self.ui.tournament_assignments.select_pool('#mp_123', pool_id)
+        with patch.object(self.ui, 'handle_send_msg') as send:
+            first = self.client.emit('tournament_pick_map', {'channel': '#mp_123', 'map_id': map_id}, callback=True)
+            second = self.client.emit('tournament_pick_map', {'channel': '#mp_123', 'map_id': map_id}, callback=True)
+        self.assertTrue(first['ok'])
+        self.assertFalse(second['ok'])
+        self.assertEqual(2, send.call_count)
+
+    def test_tournament_assignments_are_isolated_and_removed_on_close(self):
+        first = self.ui.tournament_cfg.save(valid_tournament('First'))
+        second = self.ui.tournament_cfg.save(valid_tournament('Second'))
+        self.ui.tournament_cfg.set_enabled(True)
+        with patch.object(self.ui, 'emit'):
+            self.ui.chats.add_chat('#mp_1', 1)
+            self.ui.chats.add_chat('#mp_2', 1)
+            self.ui.chats.add_chat('#room', 1)
+        self.ui.tournament_assignments.assign('#mp_1', first['id'])
+        self.ui.tournament_assignments.assign('#mp_2', second['id'])
+        self.assertEqual(first['id'], self.ui.tournament_overlay('#mp_1')['assignment']['tournament_id'])
+        self.assertEqual(second['id'], self.ui.tournament_overlay('#mp_2')['assignment']['tournament_id'])
+        self.assertIsNone(self.ui.tournament_overlay('#room')['assignment']['tournament_id'])
+        self.client.emit('tab_close', {'channel': '#mp_1'})
+        self.assertIsNone(self.ui.tournament_assignments.get('#mp_1')['tournament_id'])
+        self.assertEqual(second['id'], self.ui.tournament_assignments.get('#mp_2')['tournament_id'])
+
+    def test_assigned_tournament_cannot_be_deleted_or_invalidated(self):
+        saved = self.ui.tournament_cfg.save(valid_tournament())
+        self.ui.tournament_cfg.set_enabled(True)
+        with patch.object(self.ui, 'emit'):
+            self.ui.chats.add_chat('#mp_123', 1)
+        self.ui.tournament_assignments.assign('#mp_123', saved['id'])
+        deleted = self.client.emit('tournament_delete', {'id': saved['id']}, callback=True)
+        self.assertFalse(deleted['ok'])
+        invalid = dict(self.ui.tournament_cfg.items[saved['id']])
+        invalid['name'] = ''
+        saved_result = self.client.emit('tournament_save', {'tournament': invalid}, callback=True)
+        self.assertFalse(saved_result['ok'])
+        self.assertIsNotNone(self.ui.tournament_cfg.get(saved['id']))
+
+    def test_default_and_assigned_tournament_sounds_both_play(self):
+        audio = self.ui.settings_cfg.snapshot()['audio']
+        audio['triggers'] = [{
+            'name': 'default', 'enabled': True, 'mode': 'literal', 'pattern': 'ready',
+            'case_sensitive': False, 'sender': '', 'scope': 'match',
+            'asset_id': 'builtin:nice.mp3'
+        }]
+        self.ui.settings_cfg.update_section('audio', audio)
+        item = valid_tournament()
+        item['sound_triggers'] = [{
+            'name': 'tournament', 'enabled': True, 'mode': 'literal', 'pattern': 'ready',
+            'case_sensitive': False, 'sender': '', 'scope': 'match',
+            'asset_id': 'builtin:anime-wow.mp3'
+        }]
+        saved = self.ui.tournament_cfg.save(item)
+        self.ui.tournament_cfg.set_enabled(True)
+        with patch.object(self.ui, 'emit'):
+            self.ui.chats.add_chat('#mp_123', 1)
+        self.ui.tournament_assignments.assign('#mp_123', saved['id'])
+        self.client.get_received()
+        self.client.emit('recv_msg', {
+            'user_name': 'Player', 'room_name': 'mp_123', 'content': 'ready',
+            'channel_type': 1, 'time_recv': 1.0
+        })
+        sounds = [event for event in self.client.get_received() if event['name'] == 'play_sounds']
+        self.assertEqual(2, len(sounds))
+        with patch.object(self.ui, 'emit'):
+            self.ui.chats.add_chat('#mp_456', 1)
+        self.client.get_received()
+        self.client.emit('recv_msg', {
+            'user_name': 'Player', 'room_name': 'mp_456', 'content': 'ready',
+            'channel_type': 1, 'time_recv': 2.0
+        })
+        unassigned_sounds = [event for event in self.client.get_received() if event['name'] == 'play_sounds']
+        self.assertEqual(1, len(unassigned_sounds))
+
+    def test_tournament_score_multiplies_each_player_mod(self):
+        item = valid_tournament()
+        item['score_calculation']['enabled'] = True
+        item['score_calculation']['mod_multipliers'].update({'NF': 0.5, 'HD': 1.0, 'SO': 1.0, 'EZ': 1.8})
+        saved = self.ui.tournament_cfg.save(item)
+        self.ui.tournament_cfg.set_enabled(True)
+        with patch.object(self.ui, 'emit'):
+            self.ui.chats.add_chat('#mp_123', 1)
+        chat = self.ui.chats.get_chat('#mp_123')
+        chat.players['Player'] = {'team': self.ui.TEAM_RED, 'score': 1000, 'mods': 'NFHDSOEZ'}
+        self.ui.tournament_assignments.assign('#mp_123', saved['id'])
+        score = self.ui.tournament_overlay('#mp_123')['score']
+        self.assertEqual(['NF', 'HD', 'SO', 'EZ'], score['players'][0]['applied_mods'])
+        self.assertEqual(900, score['totals']['red'])
+
+        chat.players['Player']['mods'] = 'NoMod'
+        item = self.ui.tournament_cfg.items[saved['id']]
+        item['score_calculation']['mod_multipliers']['NM'] = 0.75
+        score = self.ui.tournament_overlay('#mp_123')['score']
+        self.assertEqual(['NM'], score['players'][0]['applied_mods'])
+        self.assertEqual(750, score['totals']['red'])
+
     def test_match_state_tracks_players_settings_and_timer_priority(self):
         chat = self.ui.Chat('#mp_123', 1)
         with patch.object(self.ui, 'emit'):
@@ -468,7 +654,7 @@ class UiSessionTests(unittest.TestCase):
         chat.win_condition = 'ScoreV2'
         chat.beatmap = 'Artist - Title [Insane]'
         chat.mods = 'HD, HR'
-        chat.set_active_timer('match_timer', 120, 1000)
+        chat.set_active_timer('timer', 120, 1000)
         chat.set_active_timer('start_timer', 5, 1001)
         self.assertEqual(1006, chat.timer_ends_at)
         self.assertEqual('start_timer', chat.active_timer)
@@ -587,7 +773,7 @@ class UiSessionTests(unittest.TestCase):
             ('tab_close', None),
             ('irc_state', {'state': 'invented'}),
             ('set_timer', {}),
-            ('set_match_timer', None),
+            ('set_start_timer', None),
             ('change_alias', {'channel': '#missing'})
         ]
         for name, payload in malformed_events:
