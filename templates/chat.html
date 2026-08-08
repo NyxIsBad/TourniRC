@@ -509,6 +509,8 @@
     let active_timer_type = null;
     let map_started_at = null;
     let map_finished_at = null;
+    // i realized that the mappool gets re-rendered every time bancho sends an interpretable command
+    let rendered_mappool_key = null;
 
     function updateMatchTimer() {
         const timer = document.getElementById('match-active-timer');
@@ -632,22 +634,33 @@
             tournament_overlay.tournament = tournament_state.tournaments.find(item => item.id === tournament_overlay.assignment.tournament_id) || null;
         }
         document.getElementById('tournament-assignment').classList.toggle('hidden', !enabled);
-        const tournament_select = document.getElementById('tournament-select');
-        tournament_select.replaceChildren(new Option('Tournament: None', ''));
-        tournament_state.tournaments.filter(item => item.valid).forEach(item => tournament_select.add(new Option(item.name, item.id)));
-        tournament_select.value = tournament_overlay?.assignment?.tournament_id || '';
         const tournament = tournament_overlay?.tournament;
+        const assignment = tournament_overlay?.assignment;
+        const mappool_key = JSON.stringify({
+            enabled,
+            tournament: assignment?.tournament_id || '',
+            pool: assignment?.pool_id || '',
+            maps: tournament?.mappools?.[assignment?.pool_id]?.map_order || []
+        });
+        const rebuild_mappool = mappool_key !== rendered_mappool_key;
+        const tournament_select = document.getElementById('tournament-select');
         const pool_select = document.getElementById('mappool-select');
-        pool_select.replaceChildren(new Option('Mappool: None', ''));
-        if (tournament) tournament.mappool_order.forEach(id => pool_select.add(new Option(tournament.mappools[id].name, id)));
-        pool_select.disabled = !tournament;
-        pool_select.value = tournament_overlay?.assignment?.pool_id || '';
         document.getElementById('mappool-panel').classList.toggle('hidden', !enabled || !tournament);
         const maps = document.getElementById('mappool-maps');
-        maps.replaceChildren();
-        const pool = tournament?.mappools?.[pool_select.value];
+        const pool = tournament?.mappools?.[assignment?.pool_id];
         document.getElementById('mappool-prompt').classList.toggle('hidden', Boolean(pool));
-        if (pool) pool.map_order.forEach(id => {
+        if (rebuild_mappool) {
+            rendered_mappool_key = mappool_key;
+            tournament_select.replaceChildren(new Option('Tournament: None', ''));
+            tournament_state.tournaments.filter(item => item.valid).forEach(item => tournament_select.add(new Option(item.name, item.id)));
+            tournament_select.value = assignment?.tournament_id || '';
+            pool_select.replaceChildren(new Option('Mappool: None', ''));
+            if (tournament) tournament.mappool_order.forEach(id => pool_select.add(new Option(tournament.mappools[id].name, id)));
+            pool_select.disabled = !tournament;
+            pool_select.value = assignment?.pool_id || '';
+            maps.replaceChildren();
+        }
+        if (rebuild_mappool && pool) pool.map_order.forEach(id => {
             const beatmap = pool.maps[id];
             const button = document.createElement('button');
             button.className = 'btn btn-outline justify-start h-auto py-2';
@@ -803,6 +816,7 @@
         });
         socket.on('tournament_state', function(data) {
             tournament_state = data;
+            rendered_mappool_key = null;
             renderTournamentOverlay(!document.getElementById('match-commands').classList.contains('hidden'));
         });
         socket.on('tournament_overlay', function(data) {
