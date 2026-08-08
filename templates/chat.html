@@ -687,14 +687,28 @@
             warning.textContent = 'Score calculation uses each player\'s listed mods. Check the Players panel and correct the selections below before relying on these totals, especially during Freemod.';
             score.appendChild(warning);
             const totals = document.createElement('p');
-            totals.className = 'font-semibold';
-            totals.textContent = `Calculated score · Red ${tournament_overlay.score.totals.red} · Blue ${tournament_overlay.score.totals.blue}`;
+            // the score calculation display
+            totals.className = 'font-semibold flex flex-wrap gap-x-3';
+            const heading = document.createElement('span');
+            heading.textContent = 'Calculated score';
+            const redTotal = document.createElement('span');
+            redTotal.className = 'text-red-500';
+            redTotal.textContent = `Red: ${tournament_overlay.score.totals.red}`;
+            const blueTotal = document.createElement('span');
+            blueTotal.className = 'text-blue-500';
+            blueTotal.textContent = `Blue: ${tournament_overlay.score.totals.blue}`;
+            totals.append(heading, redTotal, blueTotal);
             score.appendChild(totals);
+            const winner = document.createElement('p');
+            const winningTeam = tournament_overlay.score.winner;
+            winner.className = `font-bold mt-1 ${winningTeam === 'red' ? 'text-red-500' : winningTeam === 'blue' ? 'text-blue-500' : ''}`;
+            winner.textContent = winningTeam === 'tie' ? 'Result: Tie (Somehow)' : `Winner: ${winningTeam === 'red' ? 'Red' : 'Blue'}`;
+            score.appendChild(winner);
             tournament_overlay.score.players.forEach(player => {
                 const row = document.createElement('details');
                 row.className = 'rounded border border-base-content p-2 mt-2';
                 const summary = document.createElement('summary');
-                summary.className = 'cursor-pointer';
+                summary.className = `cursor-pointer ${player.team === 'red' ? 'text-red-500' : 'text-blue-500'}`;
                 summary.textContent = `${player.username}: ${player.score} × ${player.multiplier} = ${player.adjusted} (${player.applied_mods.join('')})`;
                 row.appendChild(summary);
                 const choices = document.createElement('div');

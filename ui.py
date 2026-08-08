@@ -147,7 +147,8 @@ def tournament_overlay(channel: str) -> Dict[str, Any]:
             team = 'red' if player['team'] == TEAM_RED else 'blue'
             totals[team] += adjusted
             rows.append({'username': username, 'team': team, 'score': player['score'], 'mods': mods, 'applied_mods': applied_mods, 'multiplier': multiplier, 'adjusted': adjusted})
-        score = {'totals': totals, 'players': rows}
+        winner = 'red' if totals['red'] > totals['blue'] else 'blue' if totals['blue'] > totals['red'] else 'tie'
+        score = {'totals': totals, 'players': rows, 'winner': winner}
     return {
         'enabled': tournament_cfg.enabled, 'assignment': assignment,
         'tournament': tournament if tournament_cfg.enabled else None, 'score': score
