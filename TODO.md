@@ -3,8 +3,6 @@ S:/Code/TourniRC/.venv/Scripts/activate
 Currently need to:
 
 Fixes:
-- I am rebuilding the entire fucking tournament overlay for every Bancho event, via ui.py:81. Should probably:
-  - Use internal tournament for score calc and send full tournament only when assignment/config changes, can do assignment/score updates with match_state events
 - Split score rendering from mappool rendering (chat.html:630), should split into functions renderTournamentControls, renderMappool, renderScore, renderTournamentTabColors. 
   - See if doing this can make the commit mappool rendering was flickering redundant (eg we can override the fix with better architecture)
 - Shit that's probably just bad design: 

@@ -89,6 +89,14 @@ def emit_match_state(chat) -> None:
         payload['tournament'] = tournament_overlay(chat.channel_name)
     emit('match_state', payload, broadcast=True)
 
+def emit_tournament_match_states(tournament_id: Optional[str] = None) -> None:
+    for chat in chats.chats.values():
+        assignment = tournament_assignments.get(chat.channel_name)
+        if assignment['tournament_id'] and (
+            tournament_id is None or assignment['tournament_id'] == tournament_id
+        ):
+            emit_match_state(chat)
+
 def settings_payload() -> Dict[str, Any]:
     payload = settings_cfg.snapshot()
     payload['audio']['available_assets'] = available_assets(payload)
@@ -127,7 +135,9 @@ def score_mods(value):
 
 def tournament_overlay(channel: str) -> Dict[str, Any]:
     assignment = tournament_assignments.get(channel)
-    tournament = tournament_cfg.get(assignment['tournament_id']) if assignment['tournament_id'] else None
+    # match updates only need the assignment and calculated score. full
+    # tournament configuration is sent by tournament_state when it changes.
+    tournament = tournament_cfg.items.get(assignment['tournament_id'])
     score = None
     chat = chats.get_chat(channel) if 'chats' in globals() else None
     config = tournament.get('score_calculation', {}) if tournament else {}
@@ -151,7 +161,7 @@ def tournament_overlay(channel: str) -> Dict[str, Any]:
         score = {'totals': totals, 'players': rows, 'winner': winner}
     return {
         'enabled': tournament_cfg.enabled, 'assignment': assignment,
-        'tournament': tournament if tournament_cfg.enabled else None, 'score': score
+        'score': score
     }
 
 # more globals wrt. actual ui
@@ -1290,6 +1300,7 @@ def handle_tournament_save(data: Dict[str, Any]):
         saved = tournament_cfg.save(item)
         payload = tournament_state()
         emit('tournament_state', payload, broadcast=True)
+        emit_tournament_match_states(tournament_id)
         return tournament_result(data={'tournament': saved, 'state': payload})
     except TournamentError as error:
         return tournament_result(False, errors=[str(error)])
@@ -1328,6 +1339,7 @@ def handle_tournament_toggle(data: Dict[str, Any]):
         tournament_cfg.set_enabled(data['enabled'])
         payload = tournament_state()
         emit('tournament_state', payload, broadcast=True)
+        emit_tournament_match_states()
         return tournament_result(data=payload)
     except TournamentError as error:
         return tournament_result(False, errors=[str(error)])
@@ -1338,7 +1350,9 @@ def handle_tournament_clear_assignments(data: Dict[str, Any]):
         return tournament_result(False, errors=['invalid tournament request.'])
     affected = tournament_assignments.clear_tournament(data['id'])
     for channel in affected:
-        emit('tournament_overlay', {'channel': channel, **tournament_overlay(channel)}, broadcast=True)
+        chat = chats.get_chat(channel)
+        if chat:
+            emit_match_state(chat)
     emit('tournament_state', tournament_state(), broadcast=True)
     return tournament_result(data={'channels': affected})
 
@@ -1360,7 +1374,7 @@ def handle_tournament_assign(data: Dict[str, Any]):
             emit('set_timer_input', {'timer': tournament['timer']})
             emit('set_start_timer_input', {'timer': tournament['start_timer']})
         payload = tournament_overlay(data['channel'])
-        emit('tournament_overlay', {'channel': chat.channel_name, **payload}, broadcast=True)
+        emit_match_state(chat)
         emit('tournament_state', tournament_state(), broadcast=True)
         return tournament_result(data=payload)
     except ValueError as error:
@@ -1377,7 +1391,9 @@ def handle_tournament_select_pool(data: Dict[str, Any]):
     try:
         tournament_assignments.select_pool(data['channel'], data['pool_id'])
         payload = tournament_overlay(data['channel'])
-        emit('tournament_overlay', {'channel': data['channel'], **payload}, broadcast=True)
+        chat = chats.get_chat(data['channel'])
+        if chat:
+            emit_match_state(chat)
         return tournament_result(data=payload)
     except ValueError as error:
         return tournament_result(False, errors=[str(error)])
@@ -1424,7 +1440,7 @@ def handle_tournament_score_mods(data: Dict[str, Any]):
     mods = list(dict.fromkeys(data['mods']))
     chat.score_mod_overrides[username] = ['NM'] if 'NM' in mods or not mods else mods
     payload = tournament_overlay(data['channel'])
-    emit('tournament_overlay', {'channel': chat.channel_name, **payload}, broadcast=True)
+    emit_match_state(chat)
     return tournament_result(data=payload)
 
 @socketio.on('debug')
