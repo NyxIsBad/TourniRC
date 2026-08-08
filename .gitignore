@@ -11,6 +11,7 @@ dist/
 # Python related files
 .venv/
 __pycache__/
+tests/
 
 # Logs
 logs/
