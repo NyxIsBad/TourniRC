@@ -1411,6 +1411,13 @@ def handle_tournament_pick_map(data: Dict[str, Any]):
     chat = chats.get_chat(data['channel'])
     if tournament.get('timer_on_map_select') and chat:
         handle_send_msg({'channel': data['channel'], 'content': f'!mp timer {chat.timer}'})
+        # when you selected a map before, i forgot to set the active timer.
+        # I am aware that this ends up being a bit disconnected, because of
+        # bancho lag / send time / ping / etc but i think it's more important
+        # to just have an idea of where the timer is, and know that it started. 
+        # if bancho sends a "map timer" later, it will resynchronize
+        chat.set_active_timer('timer', int(chat.timer), time.time())
+        emit_match_state(chat)
     return tournament_result(data={'map_id': data['map_id']})
 
 @socketio.on('tournament_score_mods')
