@@ -810,6 +810,14 @@
         // FROM server
         // Receive message from server
         socket.on('bounce_recv_msg', function(data) {
+            const tab = findTab(data.channel);
+            if (!currentChannel() || data.channel.toLowerCase() !== currentChannel().toLowerCase()) {
+                if (tab && !tab.parentElement.classList.contains('tab-unread')) {
+                    tab.parentElement.classList.add('tab-unread');
+                    makeNotification(`New message in ${tab.getAttribute('aria-label')}`, 5000, 'info');
+                }
+                return;
+            }
             let time = data.time;
             let username = data.user;
             let content = data.content;
@@ -1144,27 +1152,32 @@
         // Button handling
         timer_button.addEventListener('click', (e) => {
             socket.emit('send_msg', {
-                content: '!mp timer ' + match_input.value
+                content: '!mp timer ' + match_input.value,
+                channel: currentChannel()
             });
         });
         start_timer.addEventListener('click', (e) => {
             socket.emit('send_msg', {
-                content: '!mp start ' + start_input.value
+                content: '!mp start ' + start_input.value,
+                channel: currentChannel()
             });
         });
         match_settings.addEventListener('click', (e) => {
             socket.emit('send_msg', {
-                content: '!mp settings'
+                content: '!mp settings',
+                channel: currentChannel()
             });
         });
         cancel_timer.addEventListener('click', (e) => {
             socket.emit('send_msg', {
-                content: '!mp aborttimer'
+                content: '!mp aborttimer',
+                channel: currentChannel()
             });
         });
         abort.addEventListener('click', (e) => {
             socket.emit('send_msg', {
-                content: '!mp abort'
+                content: '!mp abort',
+                channel: currentChannel()
             });
         });
         timezone.addEventListener('click', (e) => {
@@ -1209,7 +1222,8 @@
         });
         savelog.addEventListener('click', (e) => {
             socket.emit('send_msg', {
-                content: '/savelog'
+                content: '/savelog',
+                channel: currentChannel()
             });
         });
     });

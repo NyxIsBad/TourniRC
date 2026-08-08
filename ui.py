@@ -572,20 +572,13 @@ class Chats():
             self.add_chat(message['room_name'], message['channel_type'])
         saved_message = self.chats[message['room_name']].add_message(message)
 
-        if self.current_chat == message['room_name']:
-            self.chats[message['room_name']].unread = False
-            emit('bounce_recv_msg', {
-                'time': saved_message[0],
-                'user': saved_message[1],
-                'content': saved_message[2],
-                'state': saved_message[3]
-            }, broadcast=True)
-        else:
-            chat = self.chats[message['room_name']]
-            if not chat.unread:
-                chat.unread = True
-                emit('tab_unread', {'channel': chat.channel_name}, broadcast=True)
-                create_notif(f"New message in {chat.alias}", notif_type=NOTIF_TYPE_INFO)
+        emit('bounce_recv_msg', {
+            'channel': message['room_name'],
+            'time': saved_message[0],
+            'user': saved_message[1],
+            'content': saved_message[2],
+            'state': saved_message[3]
+        }, broadcast=True)
 
     def set_current_chat(self, channel_name: str) -> None:
         """
