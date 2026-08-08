@@ -20,6 +20,7 @@
                         <label class="form-control"><span class="label-text">Match timer</span><input id="t-timer" type="number" min="1" class="input input-bordered"></label>
                         <label class="form-control"><span class="label-text">Start timer</span><input id="t-start-timer" type="number" min="1" class="input input-bordered"></label>
                     </div>
+                    <label class="label cursor-pointer justify-start gap-3"><input id="timer-on-map-select" type="checkbox" class="toggle"><span>Send <code>!mp timer</code> after selecting a map</span></label>
                     <div class="card border border-base-content bg-base-200"><div class="card-body">
                         <label class="label cursor-pointer justify-start gap-3"><input id="score-enabled" type="checkbox" class="toggle"><span class="card-title">Calculate team scores</span></label>
                         <p>Each mod multiplier is applied separately to a player's completed score.</p>
@@ -365,6 +366,7 @@
         item.color = document.getElementById('t-color').value;
         item.timer = Number(document.getElementById('t-timer').value);
         item.start_timer = Number(document.getElementById('t-start-timer').value);
+        item.timer_on_map_select = document.getElementById('timer-on-map-select').checked;
         const mod_multipliers = {};
         document.querySelectorAll('[data-mod]').forEach(row => mod_multipliers[row.dataset.mod] = row.querySelector('input').value);
         item.score_calculation = {
@@ -420,6 +422,7 @@
         document.getElementById('t-color').value = item.color;
         document.getElementById('t-timer').value = item.timer;
         document.getElementById('t-start-timer').value = item.start_timer;
+        document.getElementById('timer-on-map-select').checked = Boolean(item.timer_on_map_select);
         document.getElementById('score-enabled').checked = Boolean(item.score_calculation?.enabled);
         renderMultipliers(item.score_calculation?.mod_multipliers);
         renderPools(item);

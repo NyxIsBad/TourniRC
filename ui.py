@@ -1407,6 +1407,9 @@ def handle_tournament_pick_map(data: Dict[str, Any]):
     map_pick_locks[lock_key] = now
     handle_send_msg({'channel': data['channel'], 'content': beatmap.get('map_command')})
     handle_send_msg({'channel': data['channel'], 'content': beatmap.get('mods_command')})
+    chat = chats.get_chat(data['channel'])
+    if tournament.get('timer_on_map_select') and chat:
+        handle_send_msg({'channel': data['channel'], 'content': f'!mp timer {chat.timer}'})
     return tournament_result(data={'map_id': data['map_id']})
 
 @socketio.on('tournament_score_mods')

@@ -25,6 +25,7 @@ def new_tournament(name='New Tournament'):
     return {
         'id': str(uuid.uuid4()), 'name': name,
         'color': '#7c3aed', 'timer': 120, 'start_timer': 10,
+        'timer_on_map_select': False,
         'mappools': {}, 'mappool_order': [], 'sound_triggers': [],
         'score_calculation': {
             'enabled': False,
@@ -137,6 +138,7 @@ def normalize_tournament(value):
     result['id'] = str(result.get('id') or uuid.uuid4())
     result['name'] = str(result.get('name', '')).strip()
     result['color'] = str(result.get('color', '#7c3aed'))
+    result['timer_on_map_select'] = bool(result.get('timer_on_map_select', False))
     for key, fallback in (('timer', 120), ('start_timer', 10)):
         try:
             result[key] = int(result.get(key, fallback))
