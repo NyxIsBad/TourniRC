@@ -44,7 +44,7 @@ exe = EXE(
     name='TourniRC',
     debug=False,
     bootloader_ignore_signals=False,
-    strip=True,
+    strip=False,
     upx=True,
     console=True,
     disable_windowed_traceback=False,
@@ -53,7 +53,7 @@ coll = COLLECT(
     exe,
     a.binaries,
     a.datas,
-    strip=True,
+    strip=False,
     upx=True,
     name='TourniRC',
 )
