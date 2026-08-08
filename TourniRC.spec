@@ -1,13 +1,14 @@
 # -*- mode: python ; coding: utf-8 -*-
-from PyInstaller.utils.hooks import collect_submodules, copy_metadata
+from PyInstaller.utils.hooks import copy_metadata
 
 datas = [
     ('templates', 'templates'),
     ('static', 'static'),
 ]
-hiddenimports = []
-for package in ('flask_socketio', 'socketio', 'engineio', 'geventwebsocket', 'asyncio_gevent'):
-    hiddenimports += collect_submodules(package, filter=lambda name: '.tests' not in name)
+hiddenimports = [
+    'engineio.async_drivers.gevent',
+    'geventwebsocket.handler',
+]
 
 for distribution in (
     'Flask',
@@ -30,7 +31,7 @@ a = Analysis(
     hiddenimports=hiddenimports,
     hookspath=[],
     runtime_hooks=[],
-    excludes=[],
+    excludes=['tkinter', '_tkinter', 'test', 'unittest'],
     noarchive=False,
 )
 pyz = PYZ(a.pure)
