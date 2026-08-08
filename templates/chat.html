@@ -276,7 +276,7 @@
         enabled: false,
         tournaments: []
     };
-    let tournament_overlay = null;
+    let tournament_match = null;
     // Variables set and used by the page
     let useUTC = true; // default to UTC
     let keepScroll = true; // default to keeping scroll
@@ -630,12 +630,12 @@
     function renderTournamentOverlay(is_match) {
         // tournaments are a layer; regular rooms should know nothing about them
         const enabled = Boolean(is_match && tournament_state.enabled);
-        if (enabled && tournament_overlay?.assignment?.tournament_id) {
-            tournament_overlay.tournament = tournament_state.tournaments.find(item => item.id === tournament_overlay.assignment.tournament_id) || null;
+        if (enabled && tournament_match?.assignment?.tournament_id) {
+            tournament_match.tournament = tournament_state.tournaments.find(item => item.id === tournament_match.assignment.tournament_id) || null;
         }
         document.getElementById('tournament-assignment').classList.toggle('hidden', !enabled);
-        const tournament = tournament_overlay?.tournament;
-        const assignment = tournament_overlay?.assignment;
+        const tournament = tournament_match?.tournament;
+        const assignment = tournament_match?.assignment;
         const mappool_key = JSON.stringify({
             enabled,
             tournament: assignment?.tournament_id || '',
@@ -680,7 +680,7 @@
         const score = document.getElementById('score-summary');
         score.replaceChildren();
         // score results are still editable because bancho can miss player mods
-        if (tournament_overlay?.score) {
+        if (tournament_match?.score) {
             score.classList.remove('hidden');
             const warning = document.createElement('div');
             warning.className = 'alert alert-warning text-sm mb-2';
@@ -693,18 +693,18 @@
             heading.textContent = 'Calculated score';
             const redTotal = document.createElement('span');
             redTotal.className = 'text-red-500';
-            redTotal.textContent = `Red: ${tournament_overlay.score.totals.red}`;
+            redTotal.textContent = `Red: ${tournament_match.score.totals.red}`;
             const blueTotal = document.createElement('span');
             blueTotal.className = 'text-blue-500';
-            blueTotal.textContent = `Blue: ${tournament_overlay.score.totals.blue}`;
+            blueTotal.textContent = `Blue: ${tournament_match.score.totals.blue}`;
             totals.append(heading, redTotal, blueTotal);
             score.appendChild(totals);
             const winner = document.createElement('p');
-            const winningTeam = tournament_overlay.score.winner;
+            const winningTeam = tournament_match.score.winner;
             winner.className = `font-bold mt-1 ${winningTeam === 'red' ? 'text-red-500' : winningTeam === 'blue' ? 'text-blue-500' : ''}`;
             winner.textContent = winningTeam === 'tie' ? 'Result: Tie (Somehow)' : `Winner: ${winningTeam === 'red' ? 'Red' : 'Blue'}`;
             score.appendChild(winner);
-            tournament_overlay.score.players.forEach(player => {
+            tournament_match.score.players.forEach(player => {
                 const row = document.createElement('details');
                 row.className = 'rounded border border-base-content p-2 mt-2';
                 const summary = document.createElement('summary');
@@ -733,7 +733,7 @@
                             mods
                         }, result => {
                             if (!result.ok) return makeNotification(result.errors.join('\n'), 5000, 'error');
-                            tournament_overlay = result.data;
+                            tournament_match = result.data;
                             renderTournamentOverlay(true);
                         });
                     };
@@ -744,17 +744,7 @@
                 score.appendChild(row);
             });
         } else score.classList.add('hidden');
-        // each tab can belong to a different tournament
-        getTabs().forEach(tab => {
-            const item = tournament_state.tournaments.find(candidate => candidate.id === tab.dataset.tournamentId);
-            const color = tournament_state.enabled && item ? item.color : '';
-            tab.style.color = '';
-            tab.style.textShadow = '';
-            tab.style.textDecorationLine = color ? 'underline' : '';
-            tab.style.textDecorationColor = color;
-            tab.style.textDecorationThickness = color ? '.2rem' : '';
-            tab.style.textUnderlineOffset = color ? '.25rem' : '';
-        });
+        renderTournamentTabColors();
     }
 
     function findTab(channel) {
@@ -770,6 +760,19 @@
 
     function currentChannel() {
         return document.querySelector('input[name="tab"]:checked')?.dataset.channel || null;
+    }
+
+    function renderTournamentTabColors() {
+        getTabs().forEach(tab => {
+            const item = tournament_state.tournaments.find(candidate => candidate.id === tab.dataset.tournamentId);
+            const color = tournament_state.enabled && item ? item.color : '';
+            tab.style.color = '';
+            tab.style.textShadow = '';
+            tab.style.textDecorationLine = color ? 'underline' : '';
+            tab.style.textDecorationColor = color;
+            tab.style.textDecorationThickness = color ? '.2rem' : '';
+            tab.style.textUnderlineOffset = color ? '.25rem' : '';
+        });
     }
 
     function sendTabOrder() {
@@ -830,23 +833,20 @@
             }
         });
         socket.on('match_state', function(data) {
+            const tab = findTab(data.channel);
+            if (tab && data.tournament) {
+                tab.dataset.tournamentId = data.tournament.assignment?.tournament_id || '';
+                renderTournamentTabColors();
+            }
             // only redraw the room the user is actually looking at
-            const selected_tab = document.querySelector('input[name="tab"]:checked');
-            if (!selected_tab || selected_tab.dataset.channel.toLowerCase() !== data.channel.toLowerCase()) return;
-            if (data.tournament) tournament_overlay = data.tournament;
+            if (!tab?.checked) return;
+            if (data.tournament) tournament_match = data.tournament;
             setChannelInfo(data.info, data.players);
         });
         socket.on('tournament_state', function(data) {
             tournament_state = data;
             rendered_mappool_key = null;
             renderTournamentOverlay(!document.getElementById('match-commands').classList.contains('hidden'));
-        });
-        socket.on('tournament_overlay', function(data) {
-            const tab = findTab(data.channel);
-            if (tab) tab.dataset.tournamentId = data.assignment?.tournament_id || '';
-            if (!currentChannel() || data.channel.toLowerCase() !== currentChannel().toLowerCase()) return;
-            tournament_overlay = data;
-            renderTournamentOverlay(true);
         });
         socket.on('bounce_tab_open', function(data) {
             const tab_container = document.getElementById('tabs');
@@ -1021,8 +1021,8 @@
                     if (data.channel_info) {
                         setChannelInfo(data.channel_info, data.players || {});
                     }
-                    tournament_overlay = data.tournament || null;
-                    selected.dataset.tournamentId = tournament_overlay?.assignment?.tournament_id || '';
+                    tournament_match = data.tournament || null;
+                    selected.dataset.tournamentId = tournament_match?.assignment?.tournament_id || '';
                     renderTournamentOverlay(data.channel_info?.kind === 'match');
                     if (keepScroll) {
                         scrollToBottom();
@@ -1134,7 +1134,7 @@
                 tournament_id: event.target.value
             }, result => {
                 if (!result.ok) return makeNotification(result.errors.join('\n'), 5000, 'error');
-                tournament_overlay = result.data;
+                tournament_match = result.data;
                 renderTournamentOverlay(true);
             });
         });
@@ -1144,7 +1144,7 @@
                 pool_id: event.target.value
             }, result => {
                 if (!result.ok) return makeNotification(result.errors.join('\n'), 5000, 'error');
-                tournament_overlay = result.data;
+                tournament_match = result.data;
                 renderTournamentOverlay(true);
             });
         });

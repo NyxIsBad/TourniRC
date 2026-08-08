@@ -86,7 +86,7 @@ def emit_match_state(chat) -> None:
         'players': chat.players
     }
     if 'tournament_cfg' in globals():
-        payload['tournament'] = tournament_overlay(chat.channel_name)
+        payload['tournament'] = tournament_match_payload(chat.channel_name)
     emit('match_state', payload, broadcast=True)
 
 def emit_tournament_match_states(tournament_id: Optional[str] = None) -> None:
@@ -133,7 +133,7 @@ def score_mods(value):
         compact = compact[len(mod):]
     return result
 
-def tournament_overlay(channel: str) -> Dict[str, Any]:
+def tournament_match_payload(channel: str) -> Dict[str, Any]:
     assignment = tournament_assignments.get(channel)
     # match updates only need the assignment and calculated score. full
     # tournament configuration is sent by tournament_state when it changes.
@@ -1089,7 +1089,7 @@ def handle_tab_swap(data: Dict[str, Any]):
         'channel_info': chats.get_chat(channel).channel_info(),
         'recent_rooms': rms_cfg.rooms,
         'recent_rooms_limit': rms_cfg.max_rooms,
-        'tournament': tournament_overlay(channel)
+        'tournament': tournament_match_payload(channel)
     }
 
 @socketio.on('tab_close')
@@ -1373,7 +1373,7 @@ def handle_tournament_assign(data: Dict[str, Any]):
             chat.set_start_timer(tournament['start_timer'])
             emit('set_timer_input', {'timer': tournament['timer']})
             emit('set_start_timer_input', {'timer': tournament['start_timer']})
-        payload = tournament_overlay(data['channel'])
+        payload = tournament_match_payload(data['channel'])
         emit_match_state(chat)
         emit('tournament_state', tournament_state(), broadcast=True)
         return tournament_result(data=payload)
@@ -1390,7 +1390,7 @@ def handle_tournament_select_pool(data: Dict[str, Any]):
         return tournament_result(False, errors=['mappool not found.'])
     try:
         tournament_assignments.select_pool(data['channel'], data['pool_id'])
-        payload = tournament_overlay(data['channel'])
+        payload = tournament_match_payload(data['channel'])
         chat = chats.get_chat(data['channel'])
         if chat:
             emit_match_state(chat)
@@ -1439,7 +1439,7 @@ def handle_tournament_score_mods(data: Dict[str, Any]):
         return tournament_result(False, errors=['player or mod not found.'])
     mods = list(dict.fromkeys(data['mods']))
     chat.score_mod_overrides[username] = ['NM'] if 'NM' in mods or not mods else mods
-    payload = tournament_overlay(data['channel'])
+    payload = tournament_match_payload(data['channel'])
     emit_match_state(chat)
     return tournament_result(data=payload)
 
