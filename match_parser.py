@@ -98,6 +98,7 @@ PLAYER_FINISHED = re.compile(
     re.IGNORECASE
 )
 MATCH_FINISHED = re.compile(r'^The match has finished!$', re.IGNORECASE)
+MATCH_STARTED = re.compile(r'^The match has started!$', re.IGNORECASE)
 
 
 def normalize_username(username: str) -> str:
@@ -264,6 +265,8 @@ def parse_banchobot_message(content: str) -> Optional[MatchEvent]:
         )
     if MATCH_FINISHED.fullmatch(content):
         return MatchEvent(kind='match_finished')
+    if MATCH_STARTED.fullmatch(content):
+        return MatchEvent(kind='match_started')
 
     if content.casefold() == 'countdown aborted':
         return MatchEvent(kind='countdown_abort')

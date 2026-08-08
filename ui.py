@@ -323,6 +323,8 @@ class Chat():
         self.host = None
         self.active_timer = None
         self.timer_ends_at = None
+        self.map_started_at = None
+        self.map_finished_at = None
         
     def add_message(self, message: Dict[str, Any]) -> List:
         """
@@ -417,6 +419,16 @@ class Chat():
         self.active_timer = None
         self.timer_ends_at = None
 
+    def start_map_timer(self, received_at: float) -> None:
+        # some small qol because it's good to know you're not insane during the quiet time
+        self.map_started_at = received_at
+        self.map_finished_at = None
+
+    def finish_map_timer(self, received_at: float) -> None:
+        # naturally
+        if self.map_started_at is not None and self.map_finished_at is None:
+            self.map_finished_at = max(received_at, self.map_started_at)
+
     def channel_info(self) -> Dict[str, Any]:
         is_match = self.type == osu_irc.CHANNEL_TYPE_ROOM and self.channel_name.casefold().startswith('#mp_')
         is_pm = self.type == osu_irc.CHANNEL_TYPE_PM
@@ -437,7 +449,9 @@ class Chat():
             'mods_host_unknown': self.mods_host_unknown,
             'host': self.host,
             'active_timer': self.active_timer,
-            'timer_ends_at': self.timer_ends_at * 1000 if self.timer_ends_at else None
+            'timer_ends_at': self.timer_ends_at * 1000 if self.timer_ends_at else None,
+            'map_started_at': self.map_started_at * 1000 if self.map_started_at is not None else None,
+            'map_finished_at': self.map_finished_at * 1000 if self.map_finished_at is not None else None
         }
 
     def set_timer(self, timer: int) -> None:
@@ -989,6 +1003,8 @@ def handle_recv_msg(data: Dict[str, Any]):
         elif event.kind == 'beatmap':
             chat.beatmap = event.value
             chat.map_id = event.map_id
+            chat.map_started_at = None
+            chat.map_finished_at = None
             chat.score_mod_overrides.clear()
             for player in chat.players.values():
                 player.pop('score', None)
@@ -1030,12 +1046,21 @@ def handle_recv_msg(data: Dict[str, Any]):
         elif event.kind == 'host_map':
             chat.mods = None
             chat.mods_host_unknown = True
+            chat.map_started_at = None
+            chat.map_finished_at = None
         elif event.kind in {'timer', 'start_timer'}:
             chat.set_active_timer(event.kind, event.seconds, data['time_recv'])
         elif event.kind == 'countdown_abort':
             chat.stop_active_timer()
         elif event.kind == 'match_abort' and chat.active_timer == 'start_timer':
             chat.stop_active_timer()
+        if event.kind == 'match_started':
+            chat.start_map_timer(data['time_recv'])
+            chat.stop_active_timer()
+        elif event.kind == 'match_finished':
+            chat.finish_map_timer(data['time_recv'])
+        elif event.kind == 'match_abort':
+            chat.finish_map_timer(data['time_recv'])
         emit_match_state(chat)
 
 @socketio.on('tab_swap')

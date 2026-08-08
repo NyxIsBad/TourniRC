@@ -100,8 +100,13 @@
                         <p id="match-size" class="mr-2">Unknown</p>
                         <p class="font-semibold mr-1">Players: </p>
                         <p id="match-player-count" class="mr-2">0</p>
+                    </div>
+                    <!-- row 3 -->
+                    <div id="channel-info-timer-row" class="hidden flex-row items-start w-[30vw]">
                         <p class="font-semibold mr-1">Timer: </p>
                         <p id="match-active-timer">No timer active</p>
+                        <p class="font-semibold ml-2 mr-1">Map Timer: </p>
+                        <p id="match-map-elapsed">Not started</p>
                     </div>
                     <!-- row 3 -->
                     <div id="channel-info-settings-row" class="hidden flex-row items-start w-[30vw]">
@@ -499,22 +504,34 @@
             recent_rooms.appendChild(recent_room);
         });
     }
+    // timer
     let active_timer_end = null;
     let active_timer_type = null;
+    let map_started_at = null;
+    let map_finished_at = null;
 
     function updateMatchTimer() {
         const timer = document.getElementById('match-active-timer');
         if (!active_timer_end) {
             timer.textContent = 'No timer active';
+        } else {
+            // i hate writing js 
+            const remaining = Math.max(0, Math.ceil((active_timer_end - Date.now()) / 1000));
+            const label = active_timer_type === 'start_timer' ? 'Start' : 'Match';
+            timer.textContent = `${label}: ${remaining}s`;
+            if (remaining === 0) {
+                active_timer_end = null;
+                active_timer_type = null;
+            }
+        }
+        const elapsed = document.getElementById('match-map-elapsed');
+        if (!map_started_at) {
+            elapsed.textContent = 'Map not started';
             return;
         }
-        const remaining = Math.max(0, Math.ceil((active_timer_end - Date.now()) / 1000));
-        const label = active_timer_type === 'start_timer' ? 'Start' : 'Match';
-        timer.textContent = `${label}: ${remaining}s`;
-        if (remaining === 0) {
-            active_timer_end = null;
-            active_timer_type = null;
-        }
+        const seconds = Math.max(0, Math.floor(((map_finished_at || Date.now()) - map_started_at) / 1000));
+        const minutes = Math.floor(seconds / 60);
+        elapsed.textContent = `${minutes}:${String(seconds % 60).padStart(2, '0')}${map_finished_at ? ' (finished)' : ''}`;
     }
 
     function setPlayers(players) {
@@ -561,6 +578,8 @@
     }
 
     function setChannelInfo(info, players) {
+        // generally sets all of the info in the channel info tab
+        // kind of aids functoin but yeah
         const is_match = info && info.kind === 'match';
         const link = document.getElementById('channel-info-link');
         link.textContent = info ? info.name : '';
@@ -571,7 +590,7 @@
             link.removeAttribute('href');
             link.classList.remove('link', 'text-accent');
         }
-        ['channel-info-match-row', 'channel-info-settings-row', 'channel-info-win-row', 'channel-info-map-row', 'channel-info-mods-row'].forEach(id => {
+        ['channel-info-match-row', 'channel-info-timer-row', 'channel-info-settings-row', 'channel-info-win-row', 'channel-info-map-row', 'channel-info-mods-row'].forEach(id => {
             const row = document.getElementById(id);
             row.classList.toggle('hidden', !is_match);
             row.classList.toggle('flex', is_match);
@@ -599,6 +618,8 @@
         document.getElementById('match-mods').textContent = mods;
         active_timer_end = info && info.timer_ends_at;
         active_timer_type = info && info.active_timer;
+        map_started_at = info && info.map_started_at;
+        map_finished_at = info && info.map_finished_at;
         updateMatchTimer();
         setPlayers(players);
         renderTournamentOverlay(is_match);
