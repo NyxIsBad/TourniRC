@@ -9,7 +9,17 @@ hiddenimports = []
 for package in ('flask_socketio', 'socketio', 'engineio', 'geventwebsocket', 'asyncio_gevent'):
     hiddenimports += collect_submodules(package, filter=lambda name: '.tests' not in name)
 
-for distribution in ('Flask', 'Flask-SocketIO', 'python-socketio', 'gevent', 'gevent-websocket', 'asyncio-gevent', 'regex'):
+for distribution in (
+    'Flask',
+    'Flask-SocketIO',
+    'python-socketio',
+    'gevent',
+    'gevent-websocket',
+    'asyncio-gevent',
+    'regex',
+    'zope.event',
+    'zope.interface',
+):
     datas += copy_metadata(distribution)
 
 a = Analysis(
