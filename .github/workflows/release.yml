@@ -63,6 +63,10 @@ jobs:
           npm run build
           python -m PyInstaller --noconfirm --clean TourniRC.spec
 
+      - name: test packaged executable
+        shell: bash
+        run: ./dist/TourniRC/TourniRC${{ runner.os == 'Windows' && '.exe' || '' }} --build-test
+
       - name: find release version
         id: version
         shell: bash

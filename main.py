@@ -2,6 +2,13 @@ import gevent.monkey
 # socketio needs this before anything gets clever with threads
 gevent.monkey.patch_all()
 
+import sys
+
+# Let release builds verify that the frozen executable can load gevent and its
+# package metadata without starting the long-running IRC and web processes.
+if "--build-test" in sys.argv:
+    raise SystemExit(0)
+
 import asyncio
 import asyncio_gevent
 asyncio.set_event_loop_policy(asyncio_gevent.EventLoopPolicy())
