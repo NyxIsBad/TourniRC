@@ -3,12 +3,6 @@ import gevent.monkey
 gevent.monkey.patch_all()
 
 import sys
-
-# Let release builds verify that the frozen executable can load gevent and its
-# package metadata without starting the long-running IRC and web processes.
-if "--build-test" in sys.argv:
-    raise SystemExit(0)
-
 import asyncio
 import asyncio_gevent
 asyncio.set_event_loop_policy(asyncio_gevent.EventLoopPolicy())
@@ -21,6 +15,11 @@ from cfg import userConfig
 from irclib import IrcSessionSupervisor
 from irclog import create_logger
 from runtime_paths import data_dir, logs_dir
+
+if "--build-test" in sys.argv:
+    import requests
+    import websocket
+    raise SystemExit(0)
 
 # signal handler was too rough
 def stop_application(supervisor, ui_process):
