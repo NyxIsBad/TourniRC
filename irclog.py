@@ -8,7 +8,7 @@ def create_logger(fname: str, level: int = logging.DEBUG) -> logging.Logger:
         pass
     Log = logging.getLogger("osu_irc")
     Log.setLevel(level)
-    logfile = logging.FileHandler(fname)
+    logfile = logging.FileHandler(fname, encoding='utf-8')
     logfile.setLevel(level)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     logfile.setFormatter(formatter)
