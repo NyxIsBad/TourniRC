@@ -407,6 +407,9 @@
         document.getElementById('recent-rooms').replaceChildren();
         clearMessages();
         setChannelInfo(null, {});
+        // remove tournament attachments per tab
+        tournament_match = null;
+        renderTournament(false);
         const alias_dialog = document.getElementById('alias-dialog');
         if (alias_dialog.open) alias_dialog.close();
         document.title = 'TourniRC';
@@ -509,8 +512,6 @@
     let active_timer_type = null;
     let map_started_at = null;
     let map_finished_at = null;
-    // i realized that the mappool gets re-rendered every time bancho sends an interpretable command
-    let rendered_mappool_key = null;
 
     function updateMatchTimer() {
         const timer = document.getElementById('match-active-timer');
@@ -624,43 +625,48 @@
         map_finished_at = info && info.map_finished_at;
         updateMatchTimer();
         setPlayers(players);
-        renderTournamentOverlay(is_match);
     }
-
-    function renderTournamentOverlay(is_match) {
-        // tournaments are a layer; regular rooms should know nothing about them
+    // rather than the old tournament overlay system we now have a more dynamic render
+    // so we are going to just give contexts for each tab. This is going to be a comprehensive split of 
+    // the old render tournament overlay function, basically.
+    function tournamentContext(is_match) {
         const enabled = Boolean(is_match && tournament_state.enabled);
         if (enabled && tournament_match?.assignment?.tournament_id) {
             tournament_match.tournament = tournament_state.tournaments.find(item => item.id === tournament_match.assignment.tournament_id) || null;
         }
-        document.getElementById('tournament-assignment').classList.toggle('hidden', !enabled);
-        const tournament = tournament_match?.tournament;
-        const assignment = tournament_match?.assignment;
-        const mappool_key = JSON.stringify({
+        return {
             enabled,
-            tournament: assignment?.tournament_id || '',
-            pool: assignment?.pool_id || '',
-            maps: tournament?.mappools?.[assignment?.pool_id]?.map_order || []
-        });
-        const rebuild_mappool = mappool_key !== rendered_mappool_key;
+            tournament: enabled ? tournament_match?.tournament : null,
+            assignment: enabled ? tournament_match?.assignment : null
+        };
+    }
+    // ------
+    // all the rendering functions for tournaments
+    // ------
+    function renderTournamentControls(is_match) {
+        // the context of our match
+        const {enabled, tournament, assignment} = tournamentContext(is_match);
         const tournament_select = document.getElementById('tournament-select');
         const pool_select = document.getElementById('mappool-select');
+        document.getElementById('tournament-assignment').classList.toggle('hidden', !enabled);
         document.getElementById('mappool-panel').classList.toggle('hidden', !enabled || !tournament);
+
+        tournament_select.replaceChildren(new Option('Tournament: None', ''));
+        tournament_state.tournaments.filter(item => item.valid).forEach(item => tournament_select.add(new Option(item.name, item.id)));
+        tournament_select.value = assignment?.tournament_id || '';
+        pool_select.replaceChildren(new Option('Mappool: None', ''));
+        if (tournament) tournament.mappool_order.forEach(id => pool_select.add(new Option(tournament.mappools[id].name, id)));
+        pool_select.disabled = !tournament;
+        pool_select.value = assignment?.pool_id || '';
+    }
+
+    function renderMappool(is_match) {
+        const {tournament, assignment} = tournamentContext(is_match);
         const maps = document.getElementById('mappool-maps');
         const pool = tournament?.mappools?.[assignment?.pool_id];
         document.getElementById('mappool-prompt').classList.toggle('hidden', Boolean(pool));
-        if (rebuild_mappool) {
-            rendered_mappool_key = mappool_key;
-            tournament_select.replaceChildren(new Option('Tournament: None', ''));
-            tournament_state.tournaments.filter(item => item.valid).forEach(item => tournament_select.add(new Option(item.name, item.id)));
-            tournament_select.value = assignment?.tournament_id || '';
-            pool_select.replaceChildren(new Option('Mappool: None', ''));
-            if (tournament) tournament.mappool_order.forEach(id => pool_select.add(new Option(tournament.mappools[id].name, id)));
-            pool_select.disabled = !tournament;
-            pool_select.value = assignment?.pool_id || '';
-            maps.replaceChildren();
-        }
-        if (rebuild_mappool && pool) pool.map_order.forEach(id => {
+        maps.replaceChildren();
+        if (pool) pool.map_order.forEach(id => {
             const beatmap = pool.maps[id];
             const button = document.createElement('button');
             button.className = 'btn btn-outline justify-start h-auto py-2';
@@ -677,10 +683,14 @@
             });
             maps.appendChild(button);
         });
+    }
+
+    function renderScore(is_match) {
+        const {enabled} = tournamentContext(is_match);
         const score = document.getElementById('score-summary');
         score.replaceChildren();
         // score results are still editable because bancho can miss player mods
-        if (tournament_match?.score) {
+        if (enabled && tournament_match?.score) {
             score.classList.remove('hidden');
             const warning = document.createElement('div');
             warning.className = 'alert alert-warning text-sm mb-2';
@@ -734,7 +744,7 @@
                         }, result => {
                             if (!result.ok) return makeNotification(result.errors.join('\n'), 5000, 'error');
                             tournament_match = result.data;
-                            renderTournamentOverlay(true);
+                            renderScore(true);
                         });
                     };
                     label.append(box, document.createTextNode(`${name} (${mod})`));
@@ -744,6 +754,12 @@
                 score.appendChild(row);
             });
         } else score.classList.add('hidden');
+    }
+    // call all the render functions in order to start a "new" full reset render
+    function renderTournament(is_match) {
+        renderTournamentControls(is_match);
+        renderMappool(is_match);
+        renderScore(is_match);
         renderTournamentTabColors();
     }
 
@@ -834,19 +850,26 @@
         });
         socket.on('match_state', function(data) {
             const tab = findTab(data.channel);
+            const tournamentId = data.tournament?.assignment?.tournament_id || '';
+            const poolId = data.tournament?.assignment?.pool_id || '';
+            const assignmentChanged = Boolean(tab) && (
+                tab.dataset.tournamentId !== tournamentId || tab.dataset.poolId !== poolId
+            );
             if (tab && data.tournament) {
-                tab.dataset.tournamentId = data.tournament.assignment?.tournament_id || '';
+                tab.dataset.tournamentId = tournamentId;
+                tab.dataset.poolId = poolId;
                 renderTournamentTabColors();
             }
             // only redraw the room the user is actually looking at
             if (!tab?.checked) return;
             if (data.tournament) tournament_match = data.tournament;
             setChannelInfo(data.info, data.players);
+            if (assignmentChanged) renderTournament(data.info?.kind === 'match');
+            else renderScore(data.info?.kind === 'match');
         });
         socket.on('tournament_state', function(data) {
             tournament_state = data;
-            rendered_mappool_key = null;
-            renderTournamentOverlay(!document.getElementById('match-commands').classList.contains('hidden'));
+            renderTournament(!document.getElementById('match-commands').classList.contains('hidden'));
         });
         socket.on('bounce_tab_open', function(data) {
             const tab_container = document.getElementById('tabs');
@@ -1023,7 +1046,8 @@
                     }
                     tournament_match = data.tournament || null;
                     selected.dataset.tournamentId = tournament_match?.assignment?.tournament_id || '';
-                    renderTournamentOverlay(data.channel_info?.kind === 'match');
+                    selected.dataset.poolId = tournament_match?.assignment?.pool_id || '';
+                    renderTournament(data.channel_info?.kind === 'match');
                     if (keepScroll) {
                         scrollToBottom();
                     }
@@ -1060,6 +1084,8 @@
                             console.log('No tabs left');
                             document.title = 'TourniRC';
                             setChannelInfo(null, {});
+                            tournament_match = null;
+                            renderTournament(false);
                         }
                         // After this tab swap will be handled by the above tab swap logic
                     }
@@ -1135,7 +1161,12 @@
             }, result => {
                 if (!result.ok) return makeNotification(result.errors.join('\n'), 5000, 'error');
                 tournament_match = result.data;
-                renderTournamentOverlay(true);
+                const tab = findTab(currentChannel());
+                if (tab) {
+                    tab.dataset.tournamentId = tournament_match.assignment?.tournament_id || '';
+                    tab.dataset.poolId = tournament_match.assignment?.pool_id || '';
+                }
+                renderTournament(true);
             });
         });
         document.getElementById('mappool-select').addEventListener('change', event => {
@@ -1145,7 +1176,9 @@
             }, result => {
                 if (!result.ok) return makeNotification(result.errors.join('\n'), 5000, 'error');
                 tournament_match = result.data;
-                renderTournamentOverlay(true);
+                const tab = findTab(currentChannel());
+                if (tab) tab.dataset.poolId = tournament_match.assignment?.pool_id || '';
+                renderTournament(true);
             });
         });
         setInterval(updateMatchTimer, 250);

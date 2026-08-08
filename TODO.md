@@ -3,8 +3,6 @@ S:/Code/TourniRC/.venv/Scripts/activate
 Currently need to:
 
 Fixes:
-- Split score rendering from mappool rendering (chat.html:630), should split into functions renderTournamentControls, renderMappool, renderScore, renderTournamentTabColors. 
-  - See if doing this can make the commit mappool rendering was flickering redundant (eg we can override the fix with better architecture)
 - Shit that's probably just bad design: 
   - handle_recv_msg in general is terrible, it does a billion things. 
   - I'm reconstructing tournament sound triggers for every single message and it results in some insane comprehension/nested dictionary bullshit
@@ -60,7 +58,7 @@ All Socket IO tags:
   - set_timer_input: UI server to UI, sets timer input value
 - set_start_timer: UI to UI server, sets start timer value of current chat
   - set_start_timer_input: UI server to UI, sets start timer input value
-- match_state: UI server to UI, has current match/channel info, players, timers, and tournament overlay
+- match_state: UI server to UI, has current match/channel info, players, timers, and lightweight tournament assignment/score state
 - team_change: TODO: we can remove this sio emission, because things are kind of just done in the backend, and everything else is given through team_overrides, emit match state, etc
 - team_change (Current): UI server to UI, applies team color immediately when BanchoBot sends a team change
 
@@ -96,6 +94,5 @@ All Socket IO tags:
 - tournament_pick_map: UI to UI server, sends map/mods commands and optional map timer
 - tournament_score_mods: UI to UI server, overrides a player's score calculation mods
   - tournament_state: UI server to UI, refreshes global tournament configuration/list/usage/assets
-  - tournament_overlay: UI server to UI, refreshes assignment, selected tournament, score calculation, and winner for one match tab
 
 - debug: UI to UI server, only triggered on console command, spits out something as I need.
