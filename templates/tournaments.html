@@ -40,7 +40,7 @@
 </div>
 <dialog id="mappool-import" class="modal"><div class="modal-box">
     <h3 class="font-bold text-lg">Import maps</h3>
-    <div class="flex items-center gap-2 py-2"><p>Paste three lines per map: map name, full mods command, then full map command.</p><span class="tooltip tooltip-left" data-tip="name&#10;!mp mods [anything]&#10;!mp map [anything]"><span class="badge badge-outline cursor-help" tabindex="0">?</span></span></div>
+    <div class="flex items-center gap-2 py-2"><p>Paste three lines per map: map name, then a full mods command and a full map command (last two can be in any order). You can typically copy paste this from the ref sheet. Then, after import, optionally press "Fetch All Metadata" and save.</p><span class="tooltip tooltip-left" data-tip="name&#10;!mp mods [anything]&#10;!mp map [anything]"><span class="badge badge-outline cursor-help" tabindex="0">?</span></span></div>
     <textarea id="mappool-import-text" class="textarea textarea-bordered font-mono w-full h-80" placeholder="NM1&#10;!mp mods 1&#10;!mp map 4612267 0&#10;&#10;OR&#10;&#10;NM1 !mp mods 1 !mp map 4612267"></textarea>
     <div class="modal-action"><button id="mappool-import-confirm" class="btn btn-primary">Import</button><button id="mappool-import-cancel" class="btn">Cancel</button></div>
 </div></dialog>
