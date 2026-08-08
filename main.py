@@ -12,7 +12,6 @@ import multiprocessing
 import signal
 
 from cfg import userConfig
-from irclib import IrcSessionSupervisor
 from irclog import create_logger
 from runtime_paths import data_dir, logs_dir
 
@@ -39,6 +38,7 @@ if __name__ == "__main__":
     """
     multiprocessing.freeze_support()
     import ui
+    from irclib import IrcSessionSupervisor
 
     # irc owns the main process; flask gets the spare one
     ui_process = multiprocessing.Process(target=ui.prod_run)
