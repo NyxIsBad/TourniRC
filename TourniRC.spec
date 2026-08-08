@@ -33,6 +33,7 @@ a = Analysis(
     runtime_hooks=[],
     excludes=['tkinter', '_tkinter', 'test', 'unittest'],
     noarchive=False,
+    optimize=2,
 )
 pyz = PYZ(a.pure)
 exe = EXE(
@@ -43,7 +44,7 @@ exe = EXE(
     name='TourniRC',
     debug=False,
     bootloader_ignore_signals=False,
-    strip=False,
+    strip=True,
     upx=True,
     console=True,
     disable_windowed_traceback=False,
@@ -52,7 +53,7 @@ coll = COLLECT(
     exe,
     a.binaries,
     a.datas,
-    strip=False,
+    strip=True,
     upx=True,
     name='TourniRC',
 )
