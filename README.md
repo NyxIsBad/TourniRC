@@ -43,6 +43,16 @@ then run `powershell -ExecutionPolicy Bypass -File .\build-windows.ps1`. It will
 Writable `cfg\` and `logs\` directories are created beside the
 executable.
 
+## Creating a release
+
+```bash
+git tag -a v1.1.0 -m "TourniRC 1.1.0"
+git push origin v1.1.0
+```
+
+can also be started manually from the repository's
+actions tab for an existing `v`-prefixed tag
+
 ## Diagnostic Logs
 
 TourniRC writes its runtime diagnostics to `logs/` automatically:
