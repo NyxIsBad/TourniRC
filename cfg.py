@@ -2,6 +2,8 @@ from configparser import ConfigParser
 import os
 from typing import *
 
+WEB_PORT = 54231
+
 THEMES = [
     "light", "dark", "cupcake", "bumblebee", "emerald",
     "corporate", "synthwave", "retro", "cyberpunk", "valentine",

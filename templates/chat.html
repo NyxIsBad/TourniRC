@@ -325,9 +325,9 @@
 
     function getPlayerTeam(username, teams) {
         // irc usernames are not case sensitive
-        const lower_username = String(username).toLowerCase();
+        const lower_username = String(username).trim().replace(/[ _]+/g, '_').toLowerCase();
         for (const [player, team] of Object.entries(teams || {})) {
-            if (player.toLowerCase() === lower_username) return team;
+            if (player.trim().replace(/[ _]+/g, '_').toLowerCase() === lower_username) return team;
         }
         return 0;
     }
@@ -341,7 +341,10 @@
             container.appendChild(document.createTextNode(text));
             return;
         }
-        const escaped_players = players.map(player => player.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+        const escaped_players = players.map(player => player
+            .split(/[ _]+/)
+            .map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+            .join('[ _]+'));
         const player_regex = new RegExp(`(^|[^a-zA-Z0-9_])(${escaped_players.join('|')})(?=$|[^a-zA-Z0-9_])`, 'gi');
         let position = 0;
         let match;
@@ -751,6 +754,44 @@
                     choices.appendChild(label);
                 });
                 row.appendChild(choices);
+                const multiplierEditor = document.createElement('label');
+                multiplierEditor.className = 'label justify-start gap-2 mt-2';
+                multiplierEditor.appendChild(document.createTextNode('Multiplier'));
+                const multiplierInput = document.createElement('input');
+                multiplierInput.type = 'number';
+                multiplierInput.min = '0.01';
+                multiplierInput.step = '0.01';
+                multiplierInput.className = 'input input-bordered input-sm w-28';
+                multiplierInput.value = player.multiplier;
+                multiplierInput.onchange = () => {
+                    socket.emit('tournament_score_multiplier', {
+                        channel: currentChannel(),
+                        username: player.username,
+                        multiplier: multiplierInput.value
+                    }, result => {
+                        if (!result.ok) return makeNotification(result.errors.join('\n'), 5000, 'error');
+                        tournament_match = result.data;
+                        renderScore(true);
+                    });
+                };
+                multiplierEditor.appendChild(multiplierInput);
+                const resetMultiplier = document.createElement('button');
+                resetMultiplier.type = 'button';
+                resetMultiplier.className = 'btn btn-ghost btn-xs';
+                resetMultiplier.textContent = 'Use mods';
+                resetMultiplier.onclick = () => {
+                    socket.emit('tournament_score_multiplier', {
+                        channel: currentChannel(),
+                        username: player.username,
+                        multiplier: null
+                    }, result => {
+                        if (!result.ok) return makeNotification(result.errors.join('\n'), 5000, 'error');
+                        tournament_match = result.data;
+                        renderScore(true);
+                    });
+                };
+                multiplierEditor.appendChild(resetMultiplier);
+                row.appendChild(multiplierEditor);
                 score.appendChild(row);
             });
         } else score.classList.add('hidden');

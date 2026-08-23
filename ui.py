@@ -5,12 +5,13 @@ It just kind of ballooned and now I don't want to refactor it. Hit me up with a 
 """
 from flask import Flask, render_template, redirect, url_for, request, send_file, jsonify
 from flask_socketio import SocketIO, emit
-from cfg import THEMES, roomsConfig, userConfig
+from cfg import THEMES, WEB_PORT, roomsConfig, userConfig
 from settings import SettingsRepository, SettingsError, normalize_username
 from sounds import SoundStore, available_assets, matching_sounds
 from tournaments import MODS, TournamentAssignments, TournamentError, TournamentRepository, fetch_beatmap_metadata, parse_mappool_text, validate_tournament
 
 import json
+import math
 import os
 import re
 from pathlib import Path
@@ -117,20 +118,21 @@ def tournament_state() -> Dict[str, Any]:
     }
 
 def score_mods(value):
-    # this might become obsolete later. we'll see
     if isinstance(value, list):
         selected = [str(mod).upper() for mod in value if str(mod).upper() in MODS]
         return ['NM'] if 'NM' in selected or not selected else selected
     compact = re.sub(r'[^A-Za-z0-9]', '', str(value or '')).upper()
     if compact in {'', 'NM', 'NOMOD', 'FREEMOD', 'NONE'}:
         return ['NM']
+    aliases = {re.sub(r'[^A-Za-z0-9]', '', name).upper(): code for code, name in MODS.items()}
+    aliases.update({code: code for code in MODS})
     result = []
     while compact:
-        mod = next((code for code in sorted(MODS, key=len, reverse=True) if compact.startswith(code)), None)
-        if not mod:
+        alias = next((name for name in sorted(aliases, key=len, reverse=True) if compact.startswith(name)), None)
+        if not alias:
             break
-        result.append(mod)
-        compact = compact[len(mod):]
+        result.append(aliases[alias])
+        compact = compact[len(alias):]
     return result
 
 def tournament_match_payload(channel: str) -> Dict[str, Any]:
@@ -149,10 +151,11 @@ def tournament_match_payload(channel: str) -> Dict[str, Any]:
             if player.get('score') is None or player.get('team') not in {TEAM_RED, TEAM_BLUE}:
                 continue
             mods = str(player.get('mods') or 'NoMod')
-            applied_mods = score_mods(chat.score_mod_overrides.get(username, player.get('score_mods', mods)))
+            applied_mods = score_mods(chat.score_mod_overrides.get(username, mods))
             multiplier = 1.0
             for mod in applied_mods:
                 multiplier *= multipliers.get(mod, 1.0)
+            multiplier = getattr(chat, 'score_multiplier_overrides', {}).get(username, multiplier)
             adjusted = player['score'] * multiplier
             team = 'red' if player['team'] == TEAM_RED else 'blue'
             totals[team] += adjusted
@@ -319,6 +322,7 @@ class Chat():
         self.teams: Dict[str, int] = {}
         self.players: Dict[str, Dict[str, Any]] = {}
         self.score_mod_overrides: Dict[str, List[str]] = {}
+        self.score_multiplier_overrides: Dict[str, float] = {}
         self.timer = kwargs['timer'] if 'timer' in kwargs else 120
         self.start_timer = kwargs.get('start_timer', 5)
         self.match_name = None
@@ -393,6 +397,8 @@ class Chat():
         if player:
             self.teams.pop(player)
             self.players.pop(player, None)
+            self.score_mod_overrides.pop(player, None)
+            self.score_multiplier_overrides.pop(player, None)
         if self.host and self.host.casefold() == user.casefold():
             self.host = None
         self.player_count = len(self.teams)
@@ -1003,17 +1009,16 @@ def handle_recv_msg(data: Dict[str, Any]):
             player = chat.players.setdefault(username, {'team': TEAM_NONE, 'ready': None, 'status': None, 'host': False, 'mods': None, 'slot': None})
             player['score'] = event.score
             player['passed'] = event.passed
-            player['score_mods'] = score_mods(chat.score_mod_overrides.get(username, player.get('mods')))
         elif event.kind == 'beatmap':
             chat.beatmap = event.value
             chat.map_id = event.map_id
             chat.map_started_at = None
             chat.map_finished_at = None
             chat.score_mod_overrides.clear()
+            chat.score_multiplier_overrides.clear()
             for player in chat.players.values():
                 player.pop('score', None)
                 player.pop('passed', None)
-                player.pop('score_mods', None)
         elif event.kind == 'mods':
             chat.mods = event.value
             chat.mods_host_unknown = bool(chat.host)
@@ -1443,6 +1448,28 @@ def handle_tournament_score_mods(data: Dict[str, Any]):
     emit_match_state(chat)
     return tournament_result(data=payload)
 
+@socketio.on('tournament_score_multiplier')
+def handle_tournament_score_multiplier(data: Dict[str, Any]):
+    if not valid_payload('tournament_score_multiplier', data, {'channel': str, 'username': str}):
+        return tournament_result(False, errors=['invalid score multiplier request.'])
+    chat = chats.get_chat(data['channel'])
+    username = case_insensitive_get(chat.players, data['username']) if chat else None
+    if chat and username and data.get('multiplier') in (None, ''):
+        chat.score_multiplier_overrides.pop(username, None)
+        payload = tournament_match_payload(data['channel'])
+        emit_match_state(chat)
+        return tournament_result(data=payload)
+    try:
+        multiplier = float(data.get('multiplier'))
+    except (TypeError, ValueError):
+        multiplier = 0
+    if not chat or not username or not math.isfinite(multiplier) or multiplier <= 0:
+        return tournament_result(False, errors=['player not found or multiplier must be above zero.'])
+    chat.score_multiplier_overrides[username] = multiplier
+    payload = tournament_match_payload(data['channel'])
+    emit_match_state(chat)
+    return tournament_result(data=payload)
+
 @socketio.on('debug')
 def debug(data: Dict[str, Any]):
     log_socket_event('debug', data)
@@ -1459,7 +1486,7 @@ def debug_run():
     # However the fake mp is empty so we add it here
     global debug_flag
     debug_flag = True
-    socketio.run(app, debug=True, host='localhost', port=5000)
+    socketio.run(app, debug=True, host='localhost', port=WEB_PORT)
 
 def debug_connect():
     global debug_flag
@@ -1515,11 +1542,11 @@ def debug_connect():
     chats.get_chat("#mp_12345678").team_change("Pof", TEAM_BLUE)
 
 def prod_run():
-    socketio.run(app, debug=False, host='localhost', port=5000)
+    socketio.run(app, debug=False, host='localhost', port=WEB_PORT)
 
 # ---------------------
 # Used for debug since we will call all methods from main.py normally
 # ---------------------
 if __name__ == "__main__":
-    print(f"http://localhost:5000")
+    print(f"http://localhost:{WEB_PORT}")
     debug_run()

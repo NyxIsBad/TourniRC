@@ -11,7 +11,7 @@ import logging
 import multiprocessing
 import signal
 
-from cfg import userConfig
+from cfg import WEB_PORT, userConfig
 from irclog import create_logger
 from runtime_paths import data_dir, logs_dir
 
@@ -52,7 +52,7 @@ if __name__ == "__main__":
     signal.signal(signal.SIGINT, lambda *_: supervisor.shutdown())
     if hasattr(signal, 'SIGBREAK'):
         signal.signal(signal.SIGBREAK, lambda *_: supervisor.shutdown())
-    print("Navigate to http://localhost:5000 to access the client")
+    print(f"Navigate to http://localhost:{WEB_PORT} to access the client")
 
     try:
         supervisor.run()

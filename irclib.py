@@ -5,6 +5,7 @@ import time
 from typing import Any, Dict, Optional
 
 import osu_irc
+from cfg import WEB_PORT
 from socketio import Client as sioClient
 from eventlog import EventLog
 
@@ -183,7 +184,7 @@ class IrcSessionSupervisor:
     this is what enables the stronger version of what brigitta had 
     """
 
-    def __init__(self, logger: logging.Logger, server_url: str = 'http://localhost:5000'):
+    def __init__(self, logger: logging.Logger, server_url: str = f'http://localhost:{WEB_PORT}'):
         self.logger = logger
         self.server_url = server_url
         self.sio = sioClient(reconnection=True)
