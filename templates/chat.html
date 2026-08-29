@@ -65,19 +65,31 @@
         }
         #side-panels > .side-panel {
             min-height: 2.75rem;
+            position: relative;
+        }
+        #side-panels > .side-panel > .collapse-title {
+            padding-left: 3rem;
         }
         #side-panels > .side-panel.dragging {
             opacity: .5;
         }
         .panel-grab {
-            display: inline-flex;
+            display: flex;
             align-items: center;
-            margin-right: .5rem;
+            justify-content: center;
+            position: absolute;
+            z-index: 10;
+            top: .55rem;
+            left: .65rem;
+            width: 1.75rem;
+            height: 1.75rem;
             cursor: grab;
             font-size: 1.25rem;
             line-height: 1;
             opacity: .65;
             user-select: none;
+            touch-action: none;
+            -webkit-user-drag: element;
         }
         .panel-grab:hover {
             opacity: 1;
@@ -983,6 +995,10 @@
         });
         side_panels.querySelectorAll('.panel-grab').forEach(handle => {
             handle.draggable = true;
+            handle.addEventListener('click', event => {
+                event.preventDefault();
+                event.stopPropagation();
+            });
         });
         side_panels.addEventListener('dragstart', event => {
             dragged_panel = event.target.closest('.side-panel');
