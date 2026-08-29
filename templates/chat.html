@@ -2,7 +2,7 @@
 {% block title %}Chat{% endblock %}
 {% block content %}
 <!-- Entire page's flexbox -->
-<div class="flex flex-row">
+<div id="chat-layout" class="flex flex-row">
     <style>
         .tab {
             padding-inline-start: .5rem;
@@ -46,10 +46,87 @@
         .alert {
             gap: 0;
         }
+        body {
+            height: 100vh;
+            overflow: hidden;
+        }
+        body > header,
+        body > footer {
+            flex-shrink: 0;
+        }
+        body > main {
+            min-height: 0;
+            overflow: hidden;
+        }
+        #chat-layout {
+            height: 100%;
+            padding: 1rem;
+            overflow: hidden;
+        }
+        #side-panels > .side-panel {
+            min-height: 2.75rem;
+        }
+        #side-panels > .side-panel.dragging {
+            opacity: .5;
+        }
+        .panel-grab {
+            display: inline-flex;
+            align-items: center;
+            margin-right: .5rem;
+            cursor: grab;
+            font-size: 1.25rem;
+            line-height: 1;
+            opacity: .65;
+            user-select: none;
+        }
+        .panel-grab:hover {
+            opacity: 1;
+        }
+        #chat-pane {
+            flex: 0 0 65%;
+            min-width: 20rem;
+            min-height: 0;
+        }
+        #side-pane {
+            flex: 1 1 auto;
+            min-width: 20rem;
+            min-height: 0;
+        }
+        #pane-resizer {
+            flex: 0 0 1rem;
+            cursor: col-resize;
+            touch-action: none;
+            position: relative;
+        }
+        #pane-resizer::after {
+            content: '';
+            position: absolute;
+            inset: 0 .4rem;
+            border-radius: .25rem;
+            background: var(--fallback-bc, oklch(var(--bc) / .25));
+        }
+        #pane-resizer:hover::after,
+        #pane-resizer.dragging::after {
+            background: var(--fallback-p, oklch(var(--p)));
+        }
+        #pane-resizer .resize-grab {
+            position: absolute;
+            z-index: 1;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: .35rem .1rem;
+            border-radius: .25rem;
+            color: var(--fallback-bc, oklch(var(--bc)));
+            background: var(--fallback-b1, oklch(var(--b1)));
+            font-size: 1.25rem;
+            line-height: 1;
+            user-select: none;
+        }
     </style>
     <!-- Main chat area -->
     <!-- outer wrapper which will contain chat & player display -->
-    <div class="max-w-[65vw] mx-auto my-4 bg-base-100 ml-4 p-4 rounded shadow-md h-[80vh] w-[65vw] flex flex-col">
+    <div id="chat-pane" class="bg-base-100 p-4 rounded shadow-md h-full flex flex-col overflow-hidden">
         <!-- Channel Selector -->
         <div id="tabs" role="tablist" class="min-h-[40px] tabs tabs-boxed mb-4 overflow-x-auto flex">
         </div>
@@ -79,12 +156,13 @@
             </div>
         </form>
     </div>
+    <div id="pane-resizer" role="separator" aria-label="Resize chat and side panes" aria-orientation="vertical" title="Drag to resize panes"><span class="resize-grab" aria-hidden="true">⠿</span></div>
     <!-- Actions bar -->
-    <div>
-        <div class="max-w-none my-4 bg-base-100 p-4 ml-4 mr-4 rounded shadow-md h-[80vh] w-[35vw] overflow-y-auto">
-            <div class="collapse collapse-arrow join-item border rounded border-base-content mb-1">
+    <div id="side-pane" class="bg-base-100 p-4 rounded shadow-md h-full overflow-hidden">
+        <div id="side-panels" class="h-full overflow-y-auto">
+            <div id="channel-info-panel" class="side-panel collapse collapse-arrow join-item border rounded border-base-content mb-1">
                 <input type="checkbox" name="accordion" checked="checked" />
-                <div class="collapse-title text-lg font-medium">Channel Info</div>
+                <div class="collapse-title text-lg font-medium"><span class="panel-grab" title="Drag to reorder" aria-label="Drag to reorder Channel Info">⠿</span>Channel Info</div>
                 <div class="collapse-content space-y-1">
                     <div id="tournament-assignment" class="hidden grid grid-cols-2 gap-2 mb-2">
                         <select id="tournament-select" class="select select-bordered select-sm"><option value="">Tournament: None</option></select>
@@ -132,14 +210,14 @@
                     </div>
                 </div>
             </div>
-            <div id="mappool-panel" class="hidden collapse collapse-arrow join-item border rounded border-base-content mb-1">
+            <div id="mappool-panel" class="side-panel hidden collapse collapse-arrow join-item border rounded border-base-content mb-1">
                 <input type="checkbox" name="accordion" />
-                <div class="collapse-title text-lg font-medium">Mappool</div>
+                <div class="collapse-title text-lg font-medium"><span class="panel-grab" title="Drag to reorder" aria-label="Drag to reorder Mappool">⠿</span>Mappool</div>
                 <div class="collapse-content"><p id="mappool-prompt">Select a mappool.</p><div id="mappool-maps" class="flex flex-col gap-2"></div><div id="score-summary" class="hidden mt-3 border-t border-base-content pt-2"></div></div>
             </div>
-            <div id="match-commands" class="hidden collapse collapse-arrow join-item border rounded border-base-content mb-1">
+            <div id="match-commands" class="side-panel hidden collapse collapse-arrow join-item border rounded border-base-content mb-1">
                 <input type="checkbox" name="accordion" />
-                <div class="collapse-title text-lg font-medium">Commands</div>
+                <div class="collapse-title text-lg font-medium"><span class="panel-grab" title="Drag to reorder" aria-label="Drag to reorder Commands">⠿</span>Commands</div>
                 <div class="collapse-content">
                     <!-- row 1 -->
                     <div class="flex flex-row items-start w-[30vw] mb-2">
@@ -187,9 +265,9 @@
                     </div>
                 </div>
             </div>
-            <div class="collapse collapse-arrow join-item border rounded border-base-content mb-1">
+            <div id="actions-panel" class="side-panel collapse collapse-arrow join-item border rounded border-base-content mb-1">
                 <input type="checkbox" name="accordion" />
-                <div class="collapse-title text-lg font-medium">Actions</div>
+                <div class="collapse-title text-lg font-medium"><span class="panel-grab" title="Drag to reorder" aria-label="Drag to reorder Actions">⠿</span>Actions</div>
                 <div class="collapse-content">
                     <div id="macro-buttons" class="flex flex-wrap gap-2 mb-3"></div>
                     <!-- row 1 -->
@@ -247,17 +325,17 @@
                     </div>
                 </div>
             </div>
-            <div id="match-players-panel" class="hidden collapse collapse-arrow join-item border rounded border-base-content mb-1">
+            <div id="match-players-panel" class="side-panel hidden collapse collapse-arrow join-item border rounded border-base-content mb-1">
                 <input type="checkbox" name="accordion" />
-                <div class="collapse-title text-lg font-medium">Players</div>
+                <div class="collapse-title text-lg font-medium"><span class="panel-grab" title="Drag to reorder" aria-label="Drag to reorder Players">⠿</span>Players</div>
                 <div class="collapse-content">
                     <div id="players-list" class="flex flex-col gap-2">
                     </div>
                 </div>
             </div>
-            <div class="collapse collapse-arrow join-item border rounded border-base-content mb-1">
+            <div id="recent-rooms-panel" class="side-panel collapse collapse-arrow join-item border rounded border-base-content mb-1">
                 <input type="checkbox" name="accordion" />
-                <div class="collapse-title text-lg font-medium">Recent Rooms</div>
+                <div class="collapse-title text-lg font-medium"><span class="panel-grab" title="Drag to reorder" aria-label="Drag to reorder Recent Rooms">⠿</span>Recent Rooms</div>
                 <div class="collapse-content">
                     <div class="flex justify-end mb-2">
                         <button id="recent-rooms-clear" class="btn btn-sm btn-outline btn-error">Clear</button>
@@ -866,6 +944,69 @@
         const alias_cancel = document.getElementById('alias-cancel');
         let alias_channel = null;
         let dragged_tab = null;
+        let dragged_panel = null;
+
+        const chat_layout = document.getElementById('chat-layout');
+        const chat_pane = document.getElementById('chat-pane');
+        const pane_resizer = document.getElementById('pane-resizer');
+        const saved_chat_width = Number(localStorage.getItem('tournirc-chat-pane-width'));
+        if (Number.isFinite(saved_chat_width) && saved_chat_width > 0) {
+            chat_pane.style.flexBasis = `${saved_chat_width}px`;
+        }
+        pane_resizer.addEventListener('pointerdown', event => {
+            event.preventDefault();
+            pane_resizer.classList.add('dragging');
+            pane_resizer.setPointerCapture(event.pointerId);
+        });
+        pane_resizer.addEventListener('pointermove', event => {
+            if (!pane_resizer.hasPointerCapture(event.pointerId)) return;
+            const bounds = chat_layout.getBoundingClientRect();
+            const minimum = 320;
+            const divider = pane_resizer.offsetWidth;
+            const width = Math.max(minimum, Math.min(event.clientX - bounds.left, bounds.width - minimum - divider));
+            chat_pane.style.flexBasis = `${width}px`;
+        });
+        function finishPaneResize(event) {
+            if (!pane_resizer.hasPointerCapture(event.pointerId)) return;
+            pane_resizer.releasePointerCapture(event.pointerId);
+            pane_resizer.classList.remove('dragging');
+            localStorage.setItem('tournirc-chat-pane-width', String(chat_pane.getBoundingClientRect().width));
+        }
+        pane_resizer.addEventListener('pointerup', finishPaneResize);
+        pane_resizer.addEventListener('pointercancel', finishPaneResize);
+
+        const side_panels = document.getElementById('side-panels');
+        const saved_panel_order = JSON.parse(localStorage.getItem('tournirc-side-panel-order') || '[]');
+        saved_panel_order.forEach(id => {
+            const panel = document.getElementById(id);
+            if (panel?.parentElement === side_panels) side_panels.appendChild(panel);
+        });
+        side_panels.querySelectorAll('.panel-grab').forEach(handle => {
+            handle.draggable = true;
+        });
+        side_panels.addEventListener('dragstart', event => {
+            dragged_panel = event.target.closest('.side-panel');
+            if (!dragged_panel) return;
+            dragged_panel.classList.add('dragging');
+            event.dataTransfer.effectAllowed = 'move';
+        });
+        side_panels.addEventListener('dragover', event => {
+            if (!dragged_panel) return;
+            event.preventDefault();
+            const target = event.target.closest('.side-panel');
+            if (!target || target === dragged_panel) return;
+            const before = event.clientY < target.getBoundingClientRect().top + target.offsetHeight / 2;
+            side_panels.insertBefore(dragged_panel, before ? target : target.nextSibling);
+        });
+        side_panels.addEventListener('dragend', () => {
+            if (!dragged_panel) return;
+            dragged_panel.classList.remove('dragging');
+            dragged_panel = null;
+            localStorage.setItem(
+                'tournirc-side-panel-order',
+                JSON.stringify(Array.from(side_panels.children).map(panel => panel.id))
+            );
+        });
 
         // FROM server
         // Receive message from server
