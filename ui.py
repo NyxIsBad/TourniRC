@@ -323,6 +323,7 @@ class Chat():
         self.players: Dict[str, Dict[str, Any]] = {}
         self.score_mod_overrides: Dict[str, List[str]] = {}
         self.score_multiplier_overrides: Dict[str, float] = {}
+        self.score_winner_announced = False
         self.timer = kwargs['timer'] if 'timer' in kwargs else 120
         self.start_timer = kwargs.get('start_timer', 5)
         self.match_name = None
@@ -1016,6 +1017,7 @@ def handle_recv_msg(data: Dict[str, Any]):
             chat.map_finished_at = None
             chat.score_mod_overrides.clear()
             chat.score_multiplier_overrides.clear()
+            chat.score_winner_announced = False
             for player in chat.players.values():
                 player.pop('score', None)
                 player.pop('passed', None)
@@ -1066,8 +1068,18 @@ def handle_recv_msg(data: Dict[str, Any]):
         if event.kind == 'match_started':
             chat.start_map_timer(data['time_recv'])
             chat.stop_active_timer()
+            chat.score_winner_announced = False
         elif event.kind == 'match_finished':
             chat.finish_map_timer(data['time_recv'])
+            tournament_match = tournament_match_payload(chat.channel_name)
+            score = tournament_match.get('score')
+            if score and score['players'] and score['winner'] in {'red', 'blue'} and not chat.score_winner_announced:
+                room_name = chat.match_name or chat.channel_name
+                create_notif(
+                    f"Team {score['winner'].title()} won in {room_name}",
+                    notif_type=NOTIF_TYPE_SUCCESS
+                )
+                chat.score_winner_announced = True
         elif event.kind == 'match_abort':
             chat.finish_map_timer(data['time_recv'])
         emit_match_state(chat)
