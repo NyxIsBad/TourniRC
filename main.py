@@ -11,7 +11,7 @@ import logging
 import multiprocessing
 import signal
 
-from cfg import WEB_PORT, userConfig
+from cfg import WEB_HOST, find_web_port, userConfig
 from irclog import create_logger
 from runtime_paths import data_dir, logs_dir
 
@@ -41,18 +41,19 @@ if __name__ == "__main__":
     from irclib import IrcSessionSupervisor
 
     # irc owns the main process; flask gets the spare one
-    ui_process = multiprocessing.Process(target=ui.prod_run)
+    web_port = find_web_port()
+    ui_process = multiprocessing.Process(target=ui.prod_run, args=(web_port,))
     log = create_logger(str(logs_dir() / 'irc.log'), logging.DEBUG)
     ui_process.start()
 
-    supervisor = IrcSessionSupervisor(log)
+    supervisor = IrcSessionSupervisor(log, server_url=f'http://{WEB_HOST}:{web_port}')
     config = userConfig(str(data_dir() / 'login.ini'))
     supervisor.submit_credentials(config.get_username(), config.get_password())
 
     signal.signal(signal.SIGINT, lambda *_: supervisor.shutdown())
     if hasattr(signal, 'SIGBREAK'):
         signal.signal(signal.SIGBREAK, lambda *_: supervisor.shutdown())
-    print(f"Navigate to http://localhost:{WEB_PORT} to access the client")
+    print(f"Navigate to http://{WEB_HOST}:{web_port} to access the client")
 
     try:
         supervisor.run()

@@ -5,7 +5,7 @@ It just kind of ballooned and now I don't want to refactor it. Hit me up with a 
 """
 from flask import Flask, render_template, redirect, url_for, request, send_file, jsonify
 from flask_socketio import SocketIO, emit
-from cfg import THEMES, WEB_PORT, roomsConfig, userConfig
+from cfg import THEMES, WEB_HOST, WEB_PORT, find_web_port, roomsConfig, userConfig
 from settings import SettingsRepository, SettingsError, normalize_username
 from sounds import SoundStore, available_assets, matching_sounds
 from tournaments import MODS, TournamentAssignments, TournamentError, TournamentRepository, fetch_beatmap_metadata, parse_mappool_text, validate_tournament
@@ -147,7 +147,11 @@ def tournament_match_payload(channel: str) -> Dict[str, Any]:
         totals = {'red': 0.0, 'blue': 0.0}
         rows = []
         multipliers = {str(key).upper(): float(value) for key, value in config.get('mod_multipliers', {}).items()}
+        score_players = dict(chat.map_score_players)
         for username, player in chat.players.items():
+            if player.get('score') is not None:
+                score_players[username] = player
+        for username, player in score_players.items():
             if player.get('score') is None or player.get('team') not in {TEAM_RED, TEAM_BLUE}:
                 continue
             mods = str(player.get('mods') or 'NoMod')
@@ -321,6 +325,7 @@ class Chat():
         # 1 = red, 2 = blue, 0 = none
         self.teams: Dict[str, int] = {}
         self.players: Dict[str, Dict[str, Any]] = {}
+        self.map_score_players: Dict[str, Dict[str, Any]] = {}
         self.score_mod_overrides: Dict[str, List[str]] = {}
         self.score_multiplier_overrides: Dict[str, float] = {}
         self.score_winner_announced = False
@@ -398,8 +403,6 @@ class Chat():
         if player:
             self.teams.pop(player)
             self.players.pop(player, None)
-            self.score_mod_overrides.pop(player, None)
-            self.score_multiplier_overrides.pop(player, None)
         if self.host and self.host.casefold() == user.casefold():
             self.host = None
         self.player_count = len(self.teams)
@@ -1010,6 +1013,7 @@ def handle_recv_msg(data: Dict[str, Any]):
             player = chat.players.setdefault(username, {'team': TEAM_NONE, 'ready': None, 'status': None, 'host': False, 'mods': None, 'slot': None})
             player['score'] = event.score
             player['passed'] = event.passed
+            chat.map_score_players[username] = dict(player)
         elif event.kind == 'beatmap':
             chat.beatmap = event.value
             chat.map_id = event.map_id
@@ -1018,6 +1022,7 @@ def handle_recv_msg(data: Dict[str, Any]):
             chat.score_mod_overrides.clear()
             chat.score_multiplier_overrides.clear()
             chat.score_winner_announced = False
+            chat.map_score_players.clear()
             for player in chat.players.values():
                 player.pop('score', None)
                 player.pop('passed', None)
@@ -1451,7 +1456,8 @@ def handle_tournament_score_mods(data: Dict[str, Any]):
     if not valid_payload('tournament_score_mods', data, {'channel': str, 'username': str, 'mods': list}):
         return tournament_result(False, errors=['invalid score mod request.'])
     chat = chats.get_chat(data['channel'])
-    username = case_insensitive_get(chat.players, data['username']) if chat else None
+    username = (case_insensitive_get(chat.players, data['username']) or
+                case_insensitive_get(chat.map_score_players, data['username'])) if chat else None
     if not chat or not username or not all(isinstance(mod, str) and mod in MODS for mod in data['mods']):
         return tournament_result(False, errors=['player or mod not found.'])
     mods = list(dict.fromkeys(data['mods']))
@@ -1465,7 +1471,8 @@ def handle_tournament_score_multiplier(data: Dict[str, Any]):
     if not valid_payload('tournament_score_multiplier', data, {'channel': str, 'username': str}):
         return tournament_result(False, errors=['invalid score multiplier request.'])
     chat = chats.get_chat(data['channel'])
-    username = case_insensitive_get(chat.players, data['username']) if chat else None
+    username = (case_insensitive_get(chat.players, data['username']) or
+                case_insensitive_get(chat.map_score_players, data['username'])) if chat else None
     if chat and username and data.get('multiplier') in (None, ''):
         chat.score_multiplier_overrides.pop(username, None)
         payload = tournament_match_payload(data['channel'])
@@ -1498,7 +1505,9 @@ def debug_run():
     # However the fake mp is empty so we add it here
     global debug_flag
     debug_flag = True
-    socketio.run(app, debug=True, host='localhost', port=WEB_PORT)
+    port = find_web_port()
+    print(f"http://{WEB_HOST}:{port}")
+    socketio.run(app, debug=True, host=WEB_HOST, port=port)
 
 def debug_connect():
     global debug_flag
@@ -1553,12 +1562,11 @@ def debug_connect():
     chats.get_chat("#mp_12345678").team_change("HijiriS", TEAM_RED)
     chats.get_chat("#mp_12345678").team_change("Pof", TEAM_BLUE)
 
-def prod_run():
-    socketio.run(app, debug=False, host='localhost', port=WEB_PORT)
+def prod_run(port=WEB_PORT):
+    socketio.run(app, debug=False, host=WEB_HOST, port=port)
 
 # ---------------------
 # Used for debug since we will call all methods from main.py normally
 # ---------------------
 if __name__ == "__main__":
-    print(f"http://localhost:{WEB_PORT}")
     debug_run()

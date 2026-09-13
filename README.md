@@ -33,15 +33,17 @@ TourniRC is an indev iRC client aiming to be a tournament client for osu built o
 
 - Git clone the repo
 - `pip install -r requirements.txt`
-- `npm run main`
+- `npm run run`
 
 ## Portable Windows build
 
 Install Python build dependencies with `uv pip install -r requirements-build.txt`,
-then run `powershell -ExecutionPolicy Bypass -File .\build-windows.ps1`. It will write a versioned ZIP under `dist\`.
+then run `uv run --with pyinstaller pyinstaller TourniRC.spec --noconfirm`.
+The build output is written under `dist/` on Windows, macOS, and Linux.
 
-Writable `cfg\` and `logs\` directories are created beside the
-executable.
+On Windows, macOS, and Linux, the packaged app stores writable configuration
+and logs in the platform's per-user application-data directory. Set
+`TOURNIRC_DATA_DIR` or `TOURNIRC_LOG_DIR` to override those locations.
 
 ## Creating a release
 

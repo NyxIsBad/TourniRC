@@ -1,8 +1,32 @@
 from configparser import ConfigParser
 import os
+import socket
 from typing import *
 
-WEB_PORT = 54231
+WEB_HOST = os.environ.get('TOURNIRC_WEB_HOST', '127.0.0.1')
+
+
+def _web_port() -> int:
+    try:
+        port = int(os.environ.get('TOURNIRC_WEB_PORT', '54247'))
+    except ValueError:
+        return 54247
+    return port if 1 <= port <= 65535 else 54247
+
+
+WEB_PORT = _web_port()
+
+
+def find_web_port() -> int:
+    """find a usable local port"""
+    for port in range(WEB_PORT, min(WEB_PORT + 100, 65536)):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+                probe.bind((WEB_HOST, port))
+        except OSError:
+            continue
+        return port
+    raise OSError(f'No available web port in range {WEB_PORT}-{WEB_PORT + 99}.')
 
 THEMES = [
     "light", "dark", "cupcake", "bumblebee", "emerald",

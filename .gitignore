@@ -12,6 +12,14 @@ dist/
 .venv/
 __pycache__/
 tests/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+
+# OS/editor files
+.DS_Store
+Thumbs.db
 
 # Logs
 logs/
