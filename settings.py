@@ -227,6 +227,8 @@ class SettingsRepository:
         clean_assets = []
         asset_ids = set()
         for asset in assets:
+            if not isinstance(asset, dict):
+                raise SettingsError('Invalid audio asset.')
             asset_id = str(asset.get('id', ''))
             extension = str(asset.get('extension', '')).lower()
             if not asset_id or extension not in VALID_AUDIO_EXTENSIONS:
