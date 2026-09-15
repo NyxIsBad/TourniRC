@@ -2,7 +2,7 @@ import asyncio
 import logging
 import threading
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 import osu_irc
 from cfg import WEB_HOST, WEB_PORT
@@ -185,9 +185,17 @@ class IrcSessionSupervisor:
     this is what enables the stronger version of what brigitta had 
     """
 
-    def __init__(self, logger: logging.Logger, server_url: str = f'http://{WEB_HOST}:{WEB_PORT}'):
+    def __init__(
+        self,
+        logger: logging.Logger,
+        server_url: str = f'http://{WEB_HOST}:{WEB_PORT}',
+        ui_is_alive: Optional[Callable[[], bool]] = None,
+        ui_exitcode: Optional[Callable[[], Optional[int]]] = None,
+    ):
         self.logger = logger
         self.server_url = server_url
+        self.ui_is_alive = ui_is_alive
+        self.ui_exitcode = ui_exitcode
         self.sio = sioClient(reconnection=True)
         self.active_client: Optional[Client] = None
         self._credentials: Optional[tuple[str, str]] = None
@@ -245,7 +253,12 @@ class IrcSessionSupervisor:
             try:
                 self.sio.connect(self.server_url)
                 IRC_EVENTS.write('ui_bridge_connected', url=self.server_url)
-            except Exception:
+            except Exception as error:
+                if self.ui_is_alive is not None and not self.ui_is_alive():
+                    exitcode = self.ui_exitcode() if self.ui_exitcode is not None else None
+                    raise RuntimeError(
+                        f'UI server exited before accepting connections (exit code {exitcode}).'
+                    ) from error
                 IRC_EVENTS.write('ui_bridge_retry', url=self.server_url)
                 time.sleep(.25)
 

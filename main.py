@@ -68,7 +68,12 @@ if __name__ == "__main__":
     log = create_logger(str(logs_dir() / 'irc.log'), logging.DEBUG)
     ui_process.start()
 
-    supervisor = IrcSessionSupervisor(log, server_url=f'http://{WEB_HOST}:{web_port}')
+    supervisor = IrcSessionSupervisor(
+        log,
+        server_url=f'http://{WEB_HOST}:{web_port}',
+        ui_is_alive=ui_process.is_alive,
+        ui_exitcode=lambda: ui_process.exitcode,
+    )
     config = userConfig(str(data_dir() / 'login.ini'))
     supervisor.submit_credentials(config.get_username(), config.get_password())
 
