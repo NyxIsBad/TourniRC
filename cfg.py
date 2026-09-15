@@ -1,6 +1,9 @@
-from configparser import ConfigParser
+from configparser import ConfigParser, Error as ConfigParserError
 import os
+from pathlib import Path
+import shutil
 import socket
+import time
 from typing import *
 
 WEB_HOST = os.environ.get('TOURNIRC_WEB_HOST', '127.0.0.1')
@@ -46,7 +49,7 @@ class userConfig():
         self.username = ''
         self.password = ''
         self.configdir = configdir
-        self.config = ConfigParser()
+        self.config = ConfigParser(interpolation=None)
         os.makedirs(os.path.dirname(self.configdir) or '.', exist_ok=True)
 
         if not os.path.exists(self.configdir):
@@ -66,9 +69,24 @@ class userConfig():
         # print(f'Created config for {self.username}')
 
     def load_config(self):
-        self.config.read(self.configdir)
-        self.username = self.config['USER']['username']
-        self.password = self.config['USER']['password']
+        try:
+            with open(self.configdir, encoding='utf-8') as configfile:
+                self.config.read_file(configfile)
+            if not self.config.has_section('USER'):
+                raise ValueError('Missing USER section.')
+            self.username = self.config.get('USER', 'username')
+            self.password = self.config.get('USER', 'password')
+        except (OSError, ConfigParserError, ValueError):
+            original = Path(self.configdir)
+            backup = original.with_name(
+                f'{original.stem}.invalid-{int(time.time())}{original.suffix}'
+            )
+            try:
+                shutil.copy2(original, backup)
+            except OSError:
+                pass
+            self.config = ConfigParser(interpolation=None)
+            self.create_config()
         # print(f'Loaded config for {self.username}')
 
     def get_username(self):
