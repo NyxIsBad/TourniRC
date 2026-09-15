@@ -8,6 +8,7 @@ import osu_irc
 from cfg import WEB_HOST, WEB_PORT
 from socketio import Client as sioClient
 from eventlog import EventLog
+from runtime_paths import logs_dir
 
 
 IRC_STATE_CONNECTING = "connecting"
@@ -15,7 +16,7 @@ IRC_STATE_AUTHENTICATED = "authenticated"
 IRC_STATE_RECONNECTING = "reconnecting"
 IRC_STATE_AUTH_FAILED = "authentication_failed"
 IRC_STATE_LOGGED_OUT = "logged_out"
-IRC_EVENTS = EventLog('irc', 'logs/irc-events.log')
+IRC_EVENTS = EventLog('irc', str(logs_dir() / 'irc-events.log'))
 
 
 class Client(osu_irc.Client):
